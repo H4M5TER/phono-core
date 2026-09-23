@@ -227,6 +227,10 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::signal(SIGINT, handle_sigint);
     const std::string package_root = argv[1];
     const std::string engine_config_json = load_config(
