@@ -361,6 +361,7 @@ function(phono_link_executorch TARGET VISIBILITY)
 
       if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Windows"))
           executorch_target_link_options_shared_lib(${TARGET})
+          set_property(TARGET ${TARGET} PROPERTY PHONO_HAS_ARCHIVE_RETENTION TRUE)
       endif()
     endif()
   endif()
@@ -430,7 +431,14 @@ if(BUILD_TESTING)
   # a v2 model package directory.
   add_executable(phono_engine_tests tests/engine_tests.cpp)
   # The model needs registration-only custom-op objects from the static archive.
-  target_link_libraries(phono_engine_tests PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,phono_core>")
+  get_target_property(_phono_has_retention phono_core PHONO_HAS_ARCHIVE_RETENTION)
+  if(_phono_has_retention)
+    # ExecuTorch already exports whole-archive retention on this platform.
+    # Applying it a second time pulls in duplicate definitions on ELF linkers.
+    target_link_libraries(phono_engine_tests PRIVATE phono_core)
+  else()
+    target_link_libraries(phono_engine_tests PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,phono_core>")
+  endif()
   add_test(NAME phono_engine_tests COMMAND phono_engine_tests)
 
   add_executable(phono_ime_editor_tests tests/ime_editor_tests.cpp)
