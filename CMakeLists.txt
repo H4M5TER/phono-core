@@ -277,7 +277,8 @@ endif()
 # CMAKE_RUNTIME_OUTPUT_DIRECTORY so that ExecuTorch's own subdirectory
 # executables (e.g. executor_runner) keep landing in build/.
 # ═══════════════════════════════════════════════════════════════════════
-set(PHONO_RUNTIME_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/results")
+set(PHONO_RUNTIME_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/results" CACHE PATH
+    "Directory for runtime binaries; override to isolate verification builds")
 
 # ═══════════════════════════════════════════════════════════════════════
 # phono_core: config, tokenizer, KV cache, context,
@@ -428,7 +429,8 @@ if(BUILD_TESTING)
   # Model-based session tests skip unless PHONO_TEST_MODEL_DIR is set to
   # a v2 model package directory.
   add_executable(phono_engine_tests tests/engine_tests.cpp)
-  target_link_libraries(phono_engine_tests PRIVATE phono_core)
+  # The model needs registration-only custom-op objects from the static archive.
+  target_link_libraries(phono_engine_tests PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,phono_core>")
   add_test(NAME phono_engine_tests COMMAND phono_engine_tests)
 
   add_executable(phono_ime_editor_tests tests/ime_editor_tests.cpp)
