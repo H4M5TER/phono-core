@@ -917,19 +917,35 @@ GenerateResult InferenceSession::generate_impl(const std::vector<int32_t>& pinyi
                                                  : engine_.tokenizer().special_token_id("bos_token"));
     std::vector<int32_t> first_positions(static_cast<size_t>(first_batch), first_position);
     context::PersistentTensor& first_cache = first_batch == 1 ? fill_kv_ : self_kv_;
-    const std::vector<float> clean_history_last = has_history
-                                                       ? first_cache.snapshot_batch_slice(0, first_position, 1)
-                                                       : std::vector<float>();
+    if (has_history && first_batch == 1) {
+        // fill_kv_ belongs to the session, not the selected context slot.
+        fill_kv_.copy_batch_slice_from(self_kv_, 0, 0, 0, history_seqlen_);
+    }
+    // The last committed token is also the first conditional query. Its
+    // pass-2 self-attention KV must remain visible to every generation step,
+    // but must never survive as committed pass-1 history. Restore on all
+    // exits, including cancellation, model errors and exceptions.
+    struct RestoreHistoryBoundary {
+        context::PersistentTensor& history;
+        context::PersistentTensor& first;
+        int32_t position;
+        std::vector<float> clean;
+        ~RestoreHistoryBoundary() {
+            if (clean.empty()) return;
+            for (int32_t b = 0; b < history.batch_size(); ++b)
+                history.restore_batch_slice(b, position, 1, clean);
+            if (&first != &history)
+                first.restore_batch_slice(0, position, 1, clean);
+        }
+    } restore_history{self_kv_, first_cache, first_position,
+        has_history ? self_kv_.snapshot_batch_slice(0, first_position, 1)
+                    : std::vector<float>()};
     DecoderModelOutput decoder;
     error = engine_.run_pre_pass2(
         first_input, first_cache, first_positions, post, cross_kv, 0, decoder);
-    if (has_history) {
-        for (int32_t batch = 0; batch < first_batch; ++batch) {
-            first_cache.restore_batch_slice(batch, first_position, 1, clean_history_last);
-        }
-    } else if (first_batch == 1) {
-        self_kv_.copy_batch_slice_from(fill_kv_, 0, 0, 0, 1);
-        self_kv_.copy_batch_slice_to_all(0, 0, 1);
+    if (first_batch == 1) {
+        self_kv_.copy_batch_slice_from(fill_kv_, 0, 0, first_position, 1);
+        self_kv_.copy_batch_slice_to_all(0, first_position, 1);
     }
     refresh_state();
     if (cancelled(cancellation, cancellation_user_data)) {

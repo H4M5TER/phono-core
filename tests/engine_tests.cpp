@@ -10,6 +10,8 @@
 //   * max_history_length windowing (eviction keeps BOS as the attention sink)
 
 #include <cstdlib>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <initializer_list>
 #include <stdexcept>
@@ -142,6 +144,93 @@ void run(const std::string& package_root) {
           "committed ids should be stored in the context slot");
     check(slot->history_seqlen() == 1 + slot->context_ids_len(),
           "history_seqlen should count BOS + committed ids");
+
+    // Independent two-step reference: retain the last prefix token's pass-2
+    // state, as in the Python decoder, instead of restoring it between steps.
+    const auto clean = slot->self_kv.snapshot_batch_slice(0, 0, slot->history_seqlen());
+    auto reference_cache = phono::context::make_zero_persistent_tensor(
+        {cfg.pre_model.mhsa_layers, 2, core.beam_size, cfg.pre_model.max_seqlen,
+         cfg.pre_model.mhsa_heads, cfg.pre_model.self_head_dim()});
+    for (int b = 0; b < core.beam_size; ++b)
+        reference_cache.restore_batch_slice(b, 0, slot->history_seqlen(), clean);
+    phono::engine::PostModelOutput post;
+    phono::engine::CrossKvOutput cross;
+    check(engine.run_post_model(pinyin, post) == phono::engine::InferenceError::Ok,
+          "reference pinyin encoding failed");
+    check(engine.run_pre_cross_kv(post, cross) == phono::engine::InferenceError::Ok,
+          "reference cross projection failed");
+    phono::engine::DecoderModelOutput decoder;
+    check(engine.run_pre_pass2(std::vector<int32_t>(core.beam_size, committed.back()),
+              reference_cache, std::vector<int32_t>(core.beam_size, slot->history_seqlen() - 1),
+              post, cross, 0, decoder) == phono::engine::InferenceError::Ok,
+          "reference first step failed");
+    const auto log_probs = [](const auto& values, size_t offset, int size) {
+        const double maximum = *std::max_element(values.begin() + offset, values.begin() + offset + size);
+        double sum = 0;
+        for (int i = 0; i < size; ++i) sum += std::exp(values[offset + i] - maximum);
+        std::vector<double> result(size);
+        for (int i = 0; i < size; ++i) result[i] = values[offset + i] - maximum - std::log(sum);
+        return result;
+    };
+    auto first_lp = log_probs(decoder.logits, 0, decoder.projection_size);
+    std::vector<int> order(first_lp.size());
+    for (size_t i = 0; i < order.size(); ++i) order[i] = static_cast<int>(i);
+    std::sort(order.begin(), order.end(), [&](int a, int b) { return first_lp[a] > first_lp[b]; });
+    std::vector<int32_t> inputs(core.beam_size), first_ids(core.beam_size);
+    for (int b = 0; b < core.beam_size; ++b) {
+        first_ids[b] = decoder.candidate_ids[order[b]];
+        inputs[b] = tokenizer.chinese_id_to_context_id(first_ids[b]);
+    }
+    check(engine.run_pre_pass2(inputs, reference_cache,
+              std::vector<int32_t>(core.beam_size, slot->history_seqlen()),
+              post, cross, 1, decoder) == phono::engine::InferenceError::Ok,
+          "reference second step failed");
+    struct Expected { double score; std::vector<int32_t> ids; };
+    std::vector<Expected> expected;
+    for (int b = 0; b < core.beam_size; ++b) {
+        auto lp = log_probs(decoder.logits, b * decoder.projection_size, decoder.projection_size);
+        for (int i = 0; i < decoder.projection_size; ++i)
+            expected.push_back({first_lp[order[b]] + lp[i], {first_ids[b], decoder.candidate_ids[i]}});
+    }
+    std::sort(expected.begin(), expected.end(), [](const auto& a, const auto& b) { return a.score > b.score; });
+    const auto aligned = session.generate(*slot, pinyin);
+    check(aligned.ok(), "contextual reference comparison failed");
+    for (size_t b = 0; b < aligned.beams.size(); ++b) {
+        check(aligned.beams[b].pred_ids == expected[b].ids, "conditional cache candidate mismatch");
+        check(std::abs(aligned.beams[b].score - expected[b].score) < 1e-5,
+              "conditional cache score mismatch");
+    }
+    for (int cancel_poll : {-1, 1, 3}) {
+        CancellationTrigger boundary_trigger{cancel_poll, 0};
+        const auto result = session.generate(*slot, pinyin, {},
+            cancel_poll < 0 ? nullptr : cancel_after_n_steps, &boundary_trigger);
+        check(cancel_poll < 0 ? result.ok() : result.error == phono::engine::InferenceError::Cancelled,
+              "boundary cancellation status mismatch");
+        for (int b = 0; b < core.beam_size; ++b)
+            check(slot->self_kv.snapshot_batch_slice(b, 0, slot->history_seqlen()) == clean,
+                  "generation must restore all committed causal history");
+    }
+    // Committing a non-leading candidate after cancellation must agree with a
+    // fresh unconditional prefill of the same selected text.
+    const auto selected = tokenizer.encode_context(aligned.beams.back().decoded);
+    check(session.fill(*slot, selected) == phono::engine::InferenceError::Ok,
+          "commit after conditional generation failed");
+    phono::context::ContextManager fresh_manager(cfg, 1, core);
+    auto& fresh_slot = fresh_manager.get_context_by_id(0);
+    std::vector<int32_t> combined = committed;
+    combined.insert(combined.end(), selected.begin(), selected.end());
+    check(session.fill(fresh_slot, combined) == phono::engine::InferenceError::Ok,
+          "fresh reference fill failed");
+    const auto continued = session.generate(*slot, pinyin);
+    const auto fresh = session.generate(fresh_slot, pinyin);
+    check(continued.ok() && fresh.ok() && continued.beams.size() == fresh.beams.size(),
+          "continuation comparison failed");
+    for (size_t b = 0; b < fresh.beams.size(); ++b) {
+        check(continued.beams[b].pred_ids == fresh.beams[b].pred_ids,
+              "committed candidate changed subsequent predictions");
+        check(std::abs(continued.beams[b].score - fresh.beams[b].score) < 1e-3,
+              "committed candidate retained conditional cache state");
+    }
 
     // A second window with explicit full context: the committed history is
     // reused and only the new suffix is generated against.
