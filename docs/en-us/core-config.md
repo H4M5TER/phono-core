@@ -10,6 +10,7 @@ Runtime policy is deliberately separate from the model package and split into tw
 {
   "schema_version": "1.0",
   "tokenizer": {
+    "use_segmenter": true,
     "normalization": {
       "lowercase_ascii": true,
       "normalize_v_to_u": true,
@@ -27,11 +28,21 @@ Runtime policy is deliberately separate from the model package and split into tw
 | `lowercase_ascii` | Convert ASCII uppercase letters before matching |
 | `normalize_v_to_u` | Convert `v` to `u` only after `j/q/x/y` in the same separator-delimited run |
 | `separators` | Characters removed while forcing a syllable boundary |
+| `use_segmenter` | Load the neural gap scorer (default `true`). Set `false` when the frontend already provides syllables, such as shuangpin |
 | `segment_mode` | `safe` returns valid output plus invalid ranges; `strict` rejects any invalid route |
 | `repair` | In safe mode, repair each invalid character to its nearest legal token instead of deleting it |
 | `max_pinyin_chars` | Maximum normalized character count accepted by the segmentation endpoint |
 
 `max_pinyin_chars` limits raw segmentation work. It is distinct from `max_pinyin_length`, which limits the number of syllable IDs passed to the P2C model. See [Smart Pinyin Segmentation](pinyin-segmentation.md) for routing, normalization, and response schemas.
+
+With `tokenizer.use_segmenter: false`, engine creation does not open the
+segmenter model or its character vocabulary and does not apply that model's
+input limit. The P2C pre/post models and pinyin vocabulary are still required.
+Frontends can convert their explicit syllables with
+`phono_tokenizer_find_pinyin_id_exact` and pass those IDs to generation without
+calling automatic segmentation. If the segmentation endpoint is called, it
+uses checked FMM instead of the neural scorer. This flag changes runtime
+loading; it does not remove operators or dtypes from the compiled library.
 
 ## Context and session policy
 

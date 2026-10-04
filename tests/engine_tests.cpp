@@ -13,6 +13,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <initializer_list>
 #include <stdexcept>
 #include <string>
@@ -54,6 +57,59 @@ std::vector<int32_t> pinyin_ids(
         output.push_back(*id);
     }
     return output;
+}
+
+void test_explicit_syllables_without_segmenter(const std::string& package_root) {
+    namespace fs = std::filesystem;
+    struct TemporaryPackage {
+        fs::path directory = fs::temp_directory_path() /
+            ("phono_no_segmenter_" + std::to_string(
+                std::chrono::steady_clock::now().time_since_epoch().count()));
+        ~TemporaryPackage() {
+            std::error_code ignored;
+            fs::remove_all(directory, ignored);
+        }
+    } package;
+    fs::create_directories(package.directory);
+    nlohmann::json config;
+    std::ifstream(fs::path(package_root) / "config.json") >> config;
+    const auto original = phono::core::ModelPackageConfig::load(fs::absolute(package_root).string());
+    config["runtime"]["pre_model_path"] = original.resolve(original.runtime.pre_model_path);
+    config["runtime"]["post_model_path"] = original.resolve(original.runtime.post_model_path);
+    config["vocabs"]["chinese_vocab"] = original.resolve(original.vocabs.chinese_vocab);
+    config["vocabs"]["context_vocab"] = original.resolve(original.vocabs.context_vocab);
+    config["vocabs"]["pinyin_vocab"] = original.resolve(original.vocabs.pinyin_vocab);
+    check(config.contains("segmenter"), "test package must advertise its segmenter");
+    config["segmenter"]["model_path"] = "deliberately_missing_segmenter.pte";
+    config["segmenter"]["char_vocab"] = "deliberately_missing_char_vocab.txt";
+    std::ofstream(package.directory / "config.json") << config;
+
+    {
+        phono::core::EngineConfig explicit_syllables;
+        explicit_syllables.tokenizer.use_segmenter = false;
+        explicit_syllables.tokenizer.max_pinyin_chars =
+            original.segmenter->max_input_chars + 1;
+        phono::engine::InferenceEngine engine(package.directory.string(), explicit_syllables);
+        check(!engine.smart_segmenter_available(),
+              "disabled segmentation must not load the missing scorer assets");
+        check(engine.diagnostics().empty(),
+              "intentionally disabled segmenter must not report missing-scorer fallback");
+        const auto core = phono::core::default_core_config(engine.config());
+        phono::context::ContextManager manager(engine.config(), 1, core);
+        phono::engine::InferenceSession session(engine, core);
+        const auto ids = pinyin_ids(engine.tokenizer(), {"ni", "hao"});
+        const auto result = session.generate(manager.get_context_by_id(0), ids);
+        check(result.ok() && !result.beams.empty() && result.beams.front().decoded == "你好",
+              "exact syllable generation must work without segmenter assets");
+    }
+    bool missing_assets_rejected = false;
+    try {
+        phono::engine::InferenceEngine enabled(package.directory.string());
+    } catch (const std::exception&) {
+        missing_assets_rejected = true;
+    }
+    check(missing_assets_rejected,
+          "default enabled policy must still require advertised segmenter assets");
 }
 
 void run(const std::string& package_root) {
@@ -311,6 +367,7 @@ int main() {
         return 0;
     }
     try {
+        test_explicit_syllables_without_segmenter(model_dir);
         run(model_dir);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "engine_tests: FAILED: %s\n", e.what());

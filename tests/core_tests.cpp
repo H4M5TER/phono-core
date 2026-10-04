@@ -496,9 +496,22 @@ void test_engine_config_parse() {
               phono::core::EngineConfigError::Ok,
           "valid engine config should parse");
     check(config.tokenizer.segment_mode == phono::core::SegmentMode::Strict &&
+              config.tokenizer.use_segmenter &&
               config.tokenizer.repair && config.tokenizer.max_pinyin_chars == 64 &&
               !config.tokenizer.normalization.lowercase_ascii,
           "engine tokenizer options should be preserved");
+
+    auto exact_tokens = valid;
+    exact_tokens["tokenizer"]["use_segmenter"] = false;
+    check(phono::core::parse_engine_config(exact_tokens, config) ==
+              phono::core::EngineConfigError::Ok && !config.tokenizer.use_segmenter,
+          "explicit false should disable loading the segmenter");
+    auto bad_segmenter = valid;
+    bad_segmenter["tokenizer"]["use_segmenter"] = "false";
+    check(phono::core::parse_engine_config(bad_segmenter, config) ==
+              phono::core::EngineConfigError::InvalidJson &&
+              !config.tokenizer.use_segmenter,
+          "non-boolean segmenter policy should fail without changing output");
 
     auto bad_mode = valid;
     bad_mode["tokenizer"]["segment_mode"] = "guess";

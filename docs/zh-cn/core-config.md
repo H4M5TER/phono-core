@@ -10,6 +10,7 @@
 {
   "schema_version": "1.0",
   "tokenizer": {
+    "use_segmenter": true,
     "normalization": {
       "lowercase_ascii": true,
       "normalize_v_to_u": true,
@@ -27,11 +28,18 @@
 | `lowercase_ascii` | 匹配前把 ASCII 大写字母转为小写 |
 | `normalize_v_to_u` | 只在同一分隔片段的 `j/q/x/y` 后把 `v` 转为 `u` |
 | `separators` | 删除这些字符，并在原位置强制产生音节边界 |
+| `use_segmenter` | 加载神经分词模型，缺省为 `true`；双拼等前端已经提供音节时设为 `false` |
 | `segment_mode` | `safe` 返回合法输出和非法范围；`strict` 拒绝任何非法路径 |
 | `repair` | 安全模式下逐字符映射到最近合法 token，而不是删除非法字符 |
 | `max_pinyin_chars` | 分词接口允许的最大归一化字符数 |
 
 `max_pinyin_chars` 限制分词工作量；`max_pinyin_length` 则限制送入 P2C 模型的音节 ID 数量，两者含义不同。路由、归一化和响应 Schema 见 [智能拼音分词](pinyin-segmentation.md)。
+
+设置 `tokenizer.use_segmenter: false` 后，引擎创建时不打开分词模型及其字符词表，
+也不检查该分词模型的输入长度上限。P2C 的 pre/post 模型和拼音词表仍为必需资产。
+前端可以用 `phono_tokenizer_find_pinyin_id_exact` 将已有音节转为 ID，直接送入生成，
+无需调用自动分词接口；若仍调用分词接口，则使用 checked FMM 而不执行神经分词。
+这个选项只改变运行期加载逻辑，不裁剪编译库中的算子或精度。
 
 ## 上下文与会话策略
 
