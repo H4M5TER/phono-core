@@ -192,13 +192,13 @@ InferenceEngine::InferenceEngine(const std::string& package_root,
                                  runtime_error_message(err) + ")");
     }
 
-    if (config_.segmenter) {
+    if (engine_config_.tokenizer.use_segmenter && config_.segmenter) {
         if (engine_config_.tokenizer.max_pinyin_chars > config_.segmenter->max_input_chars) {
             throw std::invalid_argument(
                 "InferenceEngine: tokenizer.max_pinyin_chars exceeds segmenter hard limit");
         }
         segmenter_ = std::make_unique<PinyinSegmentScorer>(config_, *config_.segmenter);
-    } else {
+    } else if (engine_config_.tokenizer.use_segmenter) {
         diagnostics_.push_back(
             "pinyin segmenter is unavailable; auto segmentation uses checked FMM");
     }

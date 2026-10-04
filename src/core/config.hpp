@@ -58,6 +58,7 @@ const char* engine_config_error_name(EngineConfigError error);
 
 struct TokenizerEngineConfig {
     PinyinNormalizationConfig normalization;
+    bool use_segmenter = true;
     SegmentMode segment_mode = SegmentMode::Safe;
     bool repair = false;
     int32_t max_pinyin_chars = 128;

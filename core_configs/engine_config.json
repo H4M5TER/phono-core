@@ -1,6 +1,7 @@
 {
   "schema_version": "1.0",
   "tokenizer": {
+    "use_segmenter": true,
     "normalization": {
       "lowercase_ascii": true,
       "normalize_v_to_u": true,

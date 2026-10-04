@@ -90,6 +90,8 @@ EngineConfigError parse_engine_config(const json& input, EngineConfig& out) {
             "normalize_v_to_u", candidate.tokenizer.normalization.normalize_v_to_u);
         candidate.tokenizer.normalization.separators = normalization.value(
             "separators", candidate.tokenizer.normalization.separators);
+        candidate.tokenizer.use_segmenter = tokenizer.value(
+            "use_segmenter", candidate.tokenizer.use_segmenter);
         candidate.tokenizer.repair = tokenizer.value("repair", candidate.tokenizer.repair);
         candidate.tokenizer.max_pinyin_chars = tokenizer.value(
             "max_pinyin_chars", candidate.tokenizer.max_pinyin_chars);
