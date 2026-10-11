@@ -1,7 +1,7 @@
 // Model-based session tests. These exercise the real InferenceSession against
 // a v2 model package. They require the PHONO_TEST_MODEL_DIR environment
-// variable; when it is unset the suite is skipped so CTest still passes on
-// machines without a downloaded model.
+// variable. Release verification also sets PHONO_REQUIRE_TEST_MODEL, making
+// a missing model a failure instead of a skip.
 //
 // Covered here:
 //   * stateless session driving a context slot through fill + generate
@@ -363,8 +363,12 @@ void run(const std::string& package_root) {
 int main() {
     const char* model_dir = env_or_null("PHONO_TEST_MODEL_DIR");
     if (model_dir == nullptr) {
+        if (env_or_null("PHONO_REQUIRE_TEST_MODEL") != nullptr) {
+            std::fprintf(stderr, "engine_tests: PHONO_TEST_MODEL_DIR is required\n");
+            return 1;
+        }
         std::printf("engine_tests: PHONO_TEST_MODEL_DIR unset, skipping model-based tests\n");
-        return 0;
+        return 77;
     }
     try {
         test_explicit_syllables_without_segmenter(model_dir);

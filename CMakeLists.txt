@@ -11,9 +11,12 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
       CACHE FILEPATH "vcpkg toolchain file")
 endif()
 
-project(edge_phono_engine CXX)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PHONO_VERSION LIMIT_COUNT 1)
+project(phono_core VERSION "${PHONO_VERSION}" LANGUAGES CXX)
 
 include(CTest)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 # The pixi environment's Python drives the configure-time codegen: the
 # zh2Hans table below and the selective-build manifest merge. Resolve it up
@@ -271,13 +274,13 @@ endif()
 # ═══════════════════════════════════════════════════════════════════════
 # Output layout
 #
-# The model package (+ config) lives in results/, so the runnable demo
-# binaries are placed right next to it (results/). This is done per-target
+# Runtime binaries stay in the build tree. Model directories are supplied
+# explicitly by callers and tests. This is done per-target
 # (RUNTIME_OUTPUT_DIRECTORY) instead of via the global
 # CMAKE_RUNTIME_OUTPUT_DIRECTORY so that ExecuTorch's own subdirectory
 # executables (e.g. executor_runner) keep landing in build/.
 # ═══════════════════════════════════════════════════════════════════════
-set(PHONO_RUNTIME_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/results" CACHE PATH
+set(PHONO_RUNTIME_OUTPUT_DIR "${CMAKE_BINARY_DIR}/bin" CACHE PATH
     "Directory for runtime binaries; override to isolate verification builds")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -368,11 +371,12 @@ function(phono_link_executorch TARGET VISIBILITY)
 endfunction()
 
 function(phono_configure_target TARGET LINK_VISIBILITY)
+  target_include_directories(${TARGET} ${LINK_VISIBILITY}
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
   target_include_directories(${TARGET} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/interface
-    include)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interface>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/phono-core>)
   target_compile_features(${TARGET} PUBLIC cxx_std_20)
   target_link_libraries(${TARGET} ${LINK_VISIBILITY} nlohmann_json::nlohmann_json)
   target_link_libraries(${TARGET} ${LINK_VISIBILITY} ${PHONO_UNI_ALGO_LIBRARIES})
@@ -393,9 +397,37 @@ phono_configure_target(phono_core_shared PRIVATE)
 target_compile_definitions(phono_core_shared PRIVATE PHONO_BUILDING_SHARED)
 set_target_properties(phono_core_shared PROPERTIES
     OUTPUT_NAME "phono_core"
+    EXPORT_NAME core
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
     RUNTIME_OUTPUT_DIRECTORY "${PHONO_RUNTIME_OUTPUT_DIR}"
     LIBRARY_OUTPUT_DIRECTORY "${PHONO_RUNTIME_OUTPUT_DIR}"
     ARCHIVE_OUTPUT_DIRECTORY "${PHONO_RUNTIME_OUTPUT_DIR}")
+add_library(phono::core ALIAS phono_core_shared)
+if(UNIX AND NOT APPLE)
+  target_link_options(phono_core_shared PRIVATE
+    "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/phono-core.exports"
+    "LINKER:--exclude-libs,ALL")
+endif()
+
+install(TARGETS phono_core_shared EXPORT phono-coreTargets
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT sdk
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sdk
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sdk)
+install(FILES interface/phono_api.h
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/phono-core COMPONENT sdk)
+configure_package_config_file(cmake/phono-coreConfig.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/phono-core)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+install(EXPORT phono-coreTargets NAMESPACE phono::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/phono-core COMPONENT sdk)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/phono-core COMPONENT sdk)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/phono-core COMPONENT sdk)
+install(FILES VERSION DESTINATION ${CMAKE_INSTALL_DATADIR}/phono-core COMPONENT sdk)
 
 # ═══════════════════════════════════════════════════════════════════════
 # Demo: links libphono_core.so and talks to it exclusively through the stable
@@ -415,6 +447,11 @@ add_executable(ime_demo_capi apps/ime_demo_capi.cpp)
 target_link_libraries(ime_demo_capi PRIVATE phono_core_shared nlohmann_json::nlohmann_json)
 set_target_properties(ime_demo_capi PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PHONO_RUNTIME_OUTPUT_DIR}")
+if(UNIX)
+  set_target_properties(cli_demo_capi ime_demo_capi PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+endif()
+install(TARGETS cli_demo_capi ime_demo_capi
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT demos)
 
 if(BUILD_TESTING)
   add_executable(phono_core_tests tests/core_tests.cpp)
@@ -440,9 +477,12 @@ if(BUILD_TESTING)
     target_link_libraries(phono_engine_tests PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,phono_core>")
   endif()
   add_test(NAME phono_engine_tests COMMAND phono_engine_tests)
+  set_tests_properties(phono_engine_tests PROPERTIES LABELS model SKIP_RETURN_CODE 77)
 
   add_executable(phono_ime_editor_tests tests/ime_editor_tests.cpp)
   target_include_directories(phono_ime_editor_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME phono_ime_editor_tests COMMAND phono_ime_editor_tests)
   add_test(NAME ime_demo_capi_help COMMAND ime_demo_capi --help)
+  set_tests_properties(phono_core_tests phono_capi_tests phono_ime_editor_tests
+    ime_demo_capi_help PROPERTIES LABELS unit)
 endif()

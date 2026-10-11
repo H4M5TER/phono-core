@@ -1,6 +1,5 @@
 [workspace]
 name = "phono-core-env"
-version = "0.1.1"
 description = "phono core compile environment"
 channels = ["conda-forge"]
 platforms = [
