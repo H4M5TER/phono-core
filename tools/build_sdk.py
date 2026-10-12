@@ -19,7 +19,7 @@ def run(args, environment):
     return subprocess.run([str(arg) for arg in args], env=environment, check=True)
 
 
-def notices(prefix: Path, executorch: Path) -> None:
+def notices(prefix: Path, executorch: Path, build: Path) -> None:
     dependencies = json.loads((ROOT / "ci/core-dependencies.json").read_text())
     for component in ["", *dependencies["executorch"]["submodules"]]:
         directory = executorch / component
@@ -29,11 +29,15 @@ def notices(prefix: Path, executorch: Path) -> None:
                 target = prefix / "share/licenses/phono-core/third_party/executorch" / component / filename
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
-    for directory in (ROOT / "build").glob("**/share/*/copyright"):
-        if "vcpkg_installed" in directory.parts and directory.parent.name in {"uni-algo", "nlohmann-json"}:
-            target = prefix / "share/licenses/phono-core/third_party" / directory.parent.name / "copyright"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(directory, target)
+    for dependency in ("uni-algo", "nlohmann-json"):
+        candidates = [directory / "x64-windows-static/share" / dependency / "copyright"
+                      for directory in (build / "vcpkg_installed", ROOT / "vcpkg_installed")]
+        notice = next((path for path in candidates if path.is_file()), None)
+        if notice is None:
+            raise ValueError(f"The {dependency} license is missing from the dependency installation")
+        target = prefix / "share/licenses/phono-core/third_party" / dependency / "copyright"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(notice, target)
 
 
 if __name__ == "__main__":
@@ -62,7 +66,7 @@ if __name__ == "__main__":
     environment["PATH"] = str(build / "bin") + os.pathsep + environment["PATH"]
     run(["ctest", "--test-dir", build, "-L", "unit", "--output-on-failure", "--no-tests=error"], environment)
     run(["cmake", "--install", build, "--prefix", prefix, "--component", "sdk"], environment)
-    notices(prefix, executorch)
+    notices(prefix, executorch, build)
     metadata = {"version": value, "c_abi": 1, "dependencies": json.loads((ROOT / "ci/core-dependencies.json").read_text()),
                 "source_commit": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                 "dtype_selective_build": False}
