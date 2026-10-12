@@ -394,6 +394,13 @@ phono_configure_target(phono_core PUBLIC)
 # ═══════════════════════════════════════════════════════════════════════
 add_library(phono_core_shared SHARED ${PHONO_CORE_SOURCES} interface/phono_api.cpp)
 phono_configure_target(phono_core_shared PRIVATE)
+# ExecuTorch's retention option names this build target. The installed C ABI
+# library is self-contained and must not export references to build-only targets.
+get_target_property(_phono_shared_link_options phono_core_shared INTERFACE_LINK_OPTIONS)
+if(_phono_shared_link_options)
+  set_property(TARGET phono_core_shared PROPERTY INTERFACE_LINK_OPTIONS
+    "$<BUILD_INTERFACE:${_phono_shared_link_options}>")
+endif()
 target_compile_definitions(phono_core_shared PRIVATE PHONO_BUILDING_SHARED)
 set_target_properties(phono_core_shared PROPERTIES
     OUTPUT_NAME "phono_core"
