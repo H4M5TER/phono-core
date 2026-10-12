@@ -11,7 +11,7 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
       CACHE FILEPATH "vcpkg toolchain file")
 endif()
 
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PHONO_VERSION LIMIT_COUNT 1)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt" PHONO_VERSION LIMIT_COUNT 1)
 project(phono_core VERSION "${PHONO_VERSION}" LANGUAGES CXX)
 
 include(CTest)
@@ -377,7 +377,7 @@ function(phono_configure_target TARGET LINK_VISIBILITY)
   target_include_directories(${TARGET} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interface>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/phono-core>)
-  target_compile_features(${TARGET} PUBLIC cxx_std_20)
+  target_compile_features(${TARGET} ${LINK_VISIBILITY} cxx_std_20)
   target_link_libraries(${TARGET} ${LINK_VISIBILITY} nlohmann_json::nlohmann_json)
   target_link_libraries(${TARGET} ${LINK_VISIBILITY} ${PHONO_UNI_ALGO_LIBRARIES})
   phono_link_executorch(${TARGET} ${LINK_VISIBILITY})
@@ -427,7 +427,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/phono-core COMPONENT sdk)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/phono-core COMPONENT sdk)
-install(FILES VERSION DESTINATION ${CMAKE_INSTALL_DATADIR}/phono-core COMPONENT sdk)
+install(FILES VERSION.txt DESTINATION ${CMAKE_INSTALL_DATADIR}/phono-core RENAME VERSION COMPONENT sdk)
 
 # ═══════════════════════════════════════════════════════════════════════
 # Demo: links libphono_core.so and talks to it exclusively through the stable
@@ -444,6 +444,7 @@ set_target_properties(performance_benchmark PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PHONO_RUNTIME_OUTPUT_DIR}")
 
 add_executable(ime_demo_capi apps/ime_demo_capi.cpp)
+target_include_directories(ime_demo_capi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ime_demo_capi PRIVATE phono_core_shared nlohmann_json::nlohmann_json)
 set_target_properties(ime_demo_capi PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PHONO_RUNTIME_OUTPUT_DIR}")
@@ -452,6 +453,8 @@ if(UNIX)
 endif()
 install(TARGETS cli_demo_capi ime_demo_capi
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT demos)
+install(FILES core_configs/engine_config.json core_configs/context_manager.json
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/phono-core/core_configs COMPONENT demos)
 
 if(BUILD_TESTING)
   add_executable(phono_core_tests tests/core_tests.cpp)

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.24)
+project(phono_sdk_consumer LANGUAGES C)
+find_package(phono-core CONFIG REQUIRED)
+add_executable(phono_sdk_consumer main.c)
+target_link_libraries(phono_sdk_consumer PRIVATE phono::core)
+enable_testing()
+add_test(NAME phono_sdk_consumer COMMAND phono_sdk_consumer)
