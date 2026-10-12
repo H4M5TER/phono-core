@@ -1,5 +1,11 @@
 # phono-core
 
+## SDK 与发布 / SDK and releases
+
+前端使用本项目的独立 Release SDK，通过 `find_package(phono-core CONFIG REQUIRED)` 链接 `phono::core`。Linux x86_64 与 Windows x64 共享一个通用运行库，模型单独下载；版本来自 `VERSION.txt`。安装布局、C ABI、模型与算子兼容范围、锁定依赖及完整发布流程见 [SDK 与发布说明](docs/sdk-release.md)。
+
+Frontends consume this project's independent Release SDK with `find_package(phono-core CONFIG REQUIRED)` and `phono::core`. Linux x86_64 and Windows x64 each ship one universal runtime, with models downloaded separately and versions taken from `VERSION.txt`. See the [SDK and release guide](docs/sdk-release.md) for installation layout, C ABI, model and operator compatibility, locked dependencies, and the complete release workflow.
+
 ## 简介
 
 phono-core 是 PhonoP2C 的边缘侧 C++ 推理引擎：在 ExecuTorch 运行时上部署两段式 PostfixLM 拼音转汉字模型，输入「中文上下文 + 拼音音节」，输出汉字候选。它只依赖 ExecuTorch 的 C++ API 与少量系统库，适合部署到移动端或嵌入式设备。
@@ -110,11 +116,11 @@ The Trie is built directly from `pinyin_vocab.txt` at load time, so no second se
 
 前置要求：pixi 环境与 vcpkg。uni-algo 与 nlohmann-json 由 vcpkg.json 管理；繁体-简体（zh2Hans）规则在 res/zh2hans.json 中维护，由 pixi 环境里的 Python 在 CMake 配置期 codegen 成原生 C++ 表（codegen/zh2hans_codegen.py）。ExecuTorch 由 pixi 任务拉取源码后随主工程一起编译：
 
-- pixi run setup — 将 ExecuTorch 克隆到 third_party/executorch，并只初始化本工程实际用到的子模块（XNNPACK 后端依赖 + flatbuffers/flatcc/json/gflags），避免拉取全部子模块；已存在时保留并仅修正子模块
+- pixi run setup — 将 ExecuTorch 克隆到 third_party/executorch，并只初始化本工程实际用到的子模块（XNNPACK 后端依赖 + flatbuffers/flatcc/json/gflags），避免拉取全部子模块；由 ci/core-dependencies.json 锁定源码提交与子模块，拒绝覆盖本地修改
 - pixi run config — 配置 CMake 构建
 - pixi run build — 增量编译
 
-配置阶段可在 CMake 缓存中覆写选项：PHONO_USE_INSTALLED_EXECUTORCH 指定使用独立安装的 ExecuTorch（需同时设置 CMAKE_PREFIX_PATH）；EXECUTORCH_SOURCE_DIR 指定 ExecuTorch 源码路径（默认 third_party/executorch）；PHONO_XNNPACK_WEIGHT_CACHE 控制 XNNPACK delegate 是否共享 packed weights（默认 ON）。可执行文件与共享库默认输出到 results/ 目录。
+配置阶段可在 CMake 缓存中覆写选项：PHONO_USE_INSTALLED_EXECUTORCH 指定使用独立安装的 ExecuTorch（需同时设置 CMAKE_PREFIX_PATH）；EXECUTORCH_SOURCE_DIR 指定 ExecuTorch 源码路径（默认 third_party/executorch）；PHONO_XNNPACK_WEIGHT_CACHE 控制 XNNPACK delegate 是否共享 packed weights（默认 ON）。可执行文件与共享库默认输出到 build/bin/ 目录。
 
 ### 选择性编译（算子裁剪）
 
@@ -131,11 +137,11 @@ PhonoP2C 的 Hydra 导出任务（`python main.py task=export`，实现在 `expo
 
 Prerequisites: the pixi environment and vcpkg. uni-algo and nlohmann-json are declared in vcpkg.json; the Traditional->Simplified (zh2Hans) rules live in res/zh2hans.json and are compiled into a native C++ table by pixi's Python at CMake configure time (codegen/zh2hans_codegen.py). The pixi task fetches ExecuTorch's source and it is compiled together with this project:
 
-- pixi run setup — clones ExecuTorch into third_party/executorch and initializes only the submodules this project actually needs (the XNNPACK backend deps plus flatbuffers/flatcc/json/gflags) instead of pulling all of them; skipped/fixed-up when already present
+- pixi run setup — clones ExecuTorch into third_party/executorch and initializes only the submodules this project actually needs (the XNNPACK backend deps plus flatbuffers/flatcc/json/gflags) instead of pulling all of them; pins the commit and gitlinks in ci/core-dependencies.json and refuses to overwrite local changes
 - pixi run config — configures the CMake build
 - pixi run build — incremental build
 
-At configure time, CMake cache variables can be overridden: PHONO_USE_INSTALLED_EXECUTORCH selects a separately installed ExecuTorch (set CMAKE_PREFIX_PATH accordingly), EXECUTORCH_SOURCE_DIR points to the ExecuTorch source (default third_party/executorch), and PHONO_XNNPACK_WEIGHT_CACHE controls packed-weight sharing across XNNPACK delegates (default ON). Executables and the shared library are output to results/ by default.
+At configure time, CMake cache variables can be overridden: PHONO_USE_INSTALLED_EXECUTORCH selects a separately installed ExecuTorch (set CMAKE_PREFIX_PATH accordingly), EXECUTORCH_SOURCE_DIR points to the ExecuTorch source (default third_party/executorch), and PHONO_XNNPACK_WEIGHT_CACHE controls packed-weight sharing across XNNPACK delegates (default ON). Executables and the shared library are output to build/bin/ by default.
 
 ### Selective build (operator pruning)
 
@@ -144,7 +150,7 @@ PhonoP2C's Hydra export task (`python main.py task=export`, implemented in `expo
 - Operator pruning: EXECUTORCH_SELECT_OPS_LIST registers only the operators present in the manifests, so the full portable_ops_lib is never linked.
 - Dtype (precision) pruning: a selected_op_variants.h header is generated from the merged manifest and combined with EXECUTORCH_SELECTIVE_BUILD_DTYPE to keep only the dtype variants actually used. (Upstream ExecuTorch only supports dtype-selective-build from a single .pte model; here it is driven by the multi-model merged manifest instead.)
 
-Tunable CMake options: PHONO_OPS_CONFIG_DIR (manifest directory, default ops_config/), PHONO_OPS_MANIFESTS (explicit manifest list to merge; default picks the <tag>_ops.yaml merged manifest), and PHONO_DTYPE_SELECTIVE_BUILD (default ON; set OFF to do operator pruning only). When no manifest is present the build falls back to the full kernel library.
+Tunable CMake options: PHONO_OPS_CONFIG_DIR (manifest directory, default ops_config/), PHONO_OPS_MANIFESTS (explicit manifest list to merge; default picks the <tag>_ops.yaml merged manifest), and PHONO_DTYPE_SELECTIVE_BUILD (default OFF; set OFF to do operator pruning only). When no manifest is present the build falls back to the full kernel library.
 
 Because the vcpkg configuration, the CMake generator and the compiler toolchain differ per platform, see docs/en-us/build.md (English) or docs/zh-cn/build.md (简体中文) for platform-specific instructions. The MAP derivation, invalid-input behavior, and versioned JSON schema are in docs/en-us/pinyin-segmentation.md; runtime configuration and the C ABI are documented in core-config.md and c-api.md.
 
@@ -153,13 +159,13 @@ Because the vcpkg configuration, the CMake generator and the compiler toolchain 
 下载模型之后，运行 C-ABI 演示程序：
 
 ```
-results/cli_demo_capi phonop2c_v2_2_base_w4a8_model
+build/bin/cli_demo_capi phonop2c_v2_2_base_w4a8_model
 ```
 
 如需排除交互输入并进行可重复的性能测量，可向 CSV 基准程序传入模型包、采样次数和预热次数：
 
 ```
-results/performance_benchmark phonop2c_v2_2_base_w4a8_model 20 5
+build/bin/performance_benchmark phonop2c_v2_2_base_w4a8_model 20 5
 ```
 
 该程序报告模型加载耗时与 RSS、pre/post 各方法耗时、不同历史及拼音窗口长度下的生成耗时、单 token 增量 fill 耗时，以及 KV 清零、全量/增量 beam 重排和 session reset 的微基准。每个计时样本之前的输入构造、上下文填充和缓存初始化不计入样本耗时。
@@ -168,7 +174,7 @@ CLI 从 stdin 读取连续拼音窗口，例如 `nihaoma`。它通过版本化 J
 
 模拟实时输入法编辑，可以运行：
 ```
-results/ime_demo_capi phonop2c_v2_2_base_w4a8_model
+build/bin/ime_demo_capi phonop2c_v2_2_base_w4a8_model
 ```
 程序支持左右移动光标以及 Backspace/Delete 删除；拼音为空时，这些编辑键作用于已确认历史。切分栏实时显示智能/FMM 路由与非法范围，下一栏显示当前历史，其余栏显示候选。前两个可选参数仍是两份 JSON，第四个参数可指定上下文数量（默认 2）。按 Ctrl-C 退出。
 
@@ -177,13 +183,13 @@ results/ime_demo_capi phonop2c_v2_2_base_w4a8_model
 Run the C-ABI demo after downloading the model:
 
 ```
-results/cli_demo_capi phonop2c_v2_2_base_w4a8_model
+build/bin/cli_demo_capi phonop2c_v2_2_base_w4a8_model
 ```
 
 For repeatable performance measurements without interactive I/O, run the CSV benchmark with a model package, iteration count and warmup count:
 
 ```
-results/performance_benchmark phonop2c_v2_2_base_w4a8_model 20 5
+build/bin/performance_benchmark phonop2c_v2_2_base_w4a8_model 20 5
 ```
 
 It reports model-load RSS and latency, individual pre/post method latency, generation across several history/window lengths, and one-token incremental fill latency. Setup and cache initialization are outside each timed sample.
@@ -193,7 +199,7 @@ The CLI reads one continuous pinyin window per line, such as `nihaoma`. It calls
 For real-time editing with left/right movement and backspace/delete, run:
 
 ```
-results/ime_demo_capi phonop2c_v2_2_base_w4a8_model
+build/bin/ime_demo_capi phonop2c_v2_2_base_w4a8_model
 ```
 
 When pinyin is empty, editing keys operate on committed history. The segmentation bar displays the smart/FMM route and invalid ranges, followed by history and candidate rows. The first two optional arguments are the engine and context JSON paths; a fourth argument selects the context count (default 2). Press Ctrl-C to exit.

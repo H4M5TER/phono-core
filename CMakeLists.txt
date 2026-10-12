@@ -56,7 +56,7 @@ else()
     message(FATAL_ERROR
       "ExecuTorch source checkout not found at: ${EXECUTORCH_SOURCE_DIR}\n"
       "Run:\n"
-      "  git clone --depth 1 https://github.com/pytorch/executorch ${EXECUTORCH_SOURCE_DIR}\n"
+      "  pixi run setup\n"
       "...or build+install ExecuTorch separately and reconfigure with\n"
       "  -DPHONO_USE_INSTALLED_EXECUTORCH=ON -DCMAKE_PREFIX_PATH=<install prefix>\n"
       "See README.md for full instructions.")
@@ -86,7 +86,7 @@ else()
       "Directory holding ExecuTorch selective-build manifests from PhonoP2C/export.py")
   set(PHONO_OPS_MANIFESTS "" CACHE STRING
       "Semicolon-separated list of manifest YAMLs to merge (default: <tag>_ops.yaml in PHONO_OPS_CONFIG_DIR)")
-  set(PHONO_DTYPE_SELECTIVE_BUILD ON CACHE BOOL
+  set(PHONO_DTYPE_SELECTIVE_BUILD OFF CACHE BOOL
       "Prune portable kernels to the dtypes present in the merged manifest")
 
   set(_phono_ops_select_dir "${CMAKE_BINARY_DIR}/phono_ops_config")

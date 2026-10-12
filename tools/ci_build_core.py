@@ -144,7 +144,7 @@ def main():
         target = prefix / "share/licenses/phono-core" / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(notice, target)
-    metadata = {"schema_version": 1, "dependencies": dependencies,
+    metadata = {"schema_version": 1, "c_abi": 1, "dependencies": dependencies,
                 "version": (source / "VERSION.txt").read_text().strip(),
                 "source_commit": run(["git", "-C", source, "rev-parse", "HEAD"], capture_output=True).stdout.strip(),
                 "compiler": compiler_version, "sysroot_glibc": "2.28",
