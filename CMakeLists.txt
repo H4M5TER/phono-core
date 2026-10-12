@@ -193,6 +193,11 @@ else()
       if(NOT CMAKE_FLATC_BUILD_RES EQUAL 0)
         message(FATAL_ERROR "Failed to pre-build host flatc executable!")
       endif()
+
+      # A fresh Visual Studio build creates the Release directory only now.
+      if(WIN32 AND EXISTS "${FLATBUFFERS_BUILD_DIR}/Release/flatc.exe")
+        set(FLATC_BIN_PATH "${FLATBUFFERS_BUILD_DIR}/Release/flatc.exe")
+      endif()
     endif()
 
     set(FLATC_EXECUTABLE "${FLATC_BIN_PATH}" CACHE FILEPATH "Path to flatc compiler" FORCE)

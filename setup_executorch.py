@@ -20,7 +20,8 @@ def prepare(target: Path) -> Path:
     if not (target / ".git").exists():
         target.parent.mkdir(parents=True, exist_ok=True)
         run("git", "clone", "--filter=blob:none", "--no-checkout", lock["url"], str(target))
-    if run("git", "-C", str(target), "status", "--porcelain", capture=True):
+    # A fresh --no-checkout clone has no worktree yet and reports tracked files as deleted.
+    elif run("git", "-C", str(target), "status", "--porcelain", capture=True):
         raise ValueError("ExecuTorch checkout has local changes; refusing to replace them")
     if subprocess.run(["git", "-C", str(target), "cat-file", "-e", lock["commit"]],
                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
