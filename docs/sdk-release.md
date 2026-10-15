@@ -41,6 +41,27 @@ Linux 构建使用 glibc 2.28 sysroot 和 GCC 13.3；发布前读取最终 ELF �
 
 Linux builds use the glibc 2.28 sysroot and GCC 13.3. Release checks read the final ELF's actual imported GLIBC, GLIBCXX, and CXXABI versions and cap them at 2.28, 3.4.31, and 1.3.14, while checking that exports are limited to `phono_*`, no RPATH is present, and no extra runtime dependencies appear. The host must supply glibc, libstdc++, and libgcc meeting the recorded requirements in `build-info.json`. Windows x64 uses the static MSVC CRT. macOS arm64 is not a release platform yet; independent build and model verification is required before adding its artifacts.
 
+## 模型包布局 / Model package layout
+
+引擎加载模型包目录中的 `config.json`、`bins/` 与 `vocabs/`。当前格式版本为字符串 `"2.2"`，不兼容旧格式。运行策略另由 `engine_config.json` 与 `context_manager.json` 提供，见 [中文](zh-cn/core-config.md) / [English](en-us/core-config.md)。
+
+The engine loads `config.json`, `bins/`, and `vocabs/` from the package directory. The current format version is the string `"2.2"`; older formats are not compatible. Runtime policy is supplied separately through `engine_config.json` and `context_manager.json`; see the [configuration guide](en-us/core-config.md).
+
+| 路径 / Path | 内容 / Contents |
+| --- | --- |
+| `config.json` | 模型结构及可选分词器配置 / Model structure and optional segmenter configuration |
+| `bins/pre_model.pte` | 解码器，含 `pre_model_pass1`、`pre_model_cross_kv`、`pre_model_pass2` / Decoder with those three methods |
+| `bins/post_model.pte` | 拼音编码器，输出隐状态与定宽候选 ID 表 / Pinyin encoder returning hidden states and a bounded candidate-ID table |
+| `vocabs/chinese_vocab.txt` | 汉字输出词表 / Chinese output vocabulary |
+| `vocabs/context_vocab.txt` | 上下文基础词表 / Base context vocabulary |
+| `vocabs/pinyin_vocab.txt` | 拼音音节词表 / Pinyin syllable vocabulary |
+| `bins/pinyin_segment.pte` | 启用智能分词时使用的 BHWC 间隙 Scorer / BHWC gap scorer for smart segmentation |
+| `vocabs/pinyin_char_vocab.txt` | 分词 Scorer 的字符词表 / Character vocabulary for the segmentation scorer |
+
+`config.json` 中声明的 `bos_token` 等特殊符号在运行时追加到上下文词表。W4A8 / W8A8 表示 P2C 主模型的量化方式；当前分词 Scorer 使用支持动态输入长度的非量化 PTE。分词模型配置要求见 [中文](zh-cn/pinyin-segmentation.md) / [English](en-us/pinyin-segmentation.md)。
+
+Special symbols such as `bos_token`, declared in `config.json`, are appended to the context vocabulary at runtime. W4A8 / W8A8 describes the main P2C model's quantization; the current segmentation scorer uses an unquantized PTE with dynamic input lengths. See the [segmentation guide](en-us/pinyin-segmentation.md) for configuration requirements.
+
 ## 构建与验证 / Build and verify
 
 Windows 在 x64 Visual Studio 开发者终端中设置 `VCPKG_ROOT`，然后使用已锁定环境。Linux 使用独立的已锁定 sysroot 构建环境；两个入口都是 CI 和本地复现共用的仓库脚本。

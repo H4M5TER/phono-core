@@ -1,5 +1,53 @@
-# 构建指南 / Build guide
+# Build guide
 
-构建入口、标准安装、Linux sysroot、Windows x64 工具链、模型验证及发布步骤统一维护在 [SDK、兼容性与发布](../sdk-release.md)。两个构建脚本与 CI 共用；源码与 Python 依赖已锁定，默认输出到构建目录。macOS arm64 暂不发布正式 SDK。
+[Project home](../../README.md) · [中文](../zh-cn/build.md)
 
-The [SDK, compatibility and release guide](../sdk-release.md) is the shared reference for build entry points, standard installation, the Linux sysroot, the Windows x64 toolchain, model verification, and releases. Both build scripts are shared with CI; source and Python dependencies are locked, and output stays in the build directory. macOS arm64 does not have a released SDK yet.
+## Environment and build entry points
+
+Install Pixi, vcpkg, and a C++ toolchain. On Windows, use a Visual Studio x64 developer shell with the C++ Desktop workload and Windows SDK installed, and set `VCPKG_ROOT`. Linux release builds use a separate glibc 2.28 sysroot environment. See [SDK, compatibility and releases](../sdk-release.md) for standard SDK builds, platform requirements, and release validation.
+
+For routine source builds in a prepared development environment:
+
+```sh
+pixi install --locked
+pixi run setup
+pixi run config
+pixi run build
+pixi run ctest --test-dir build --output-on-failure
+```
+
+`setup` prepares the ExecuTorch source and required submodules according to `ci/core-dependencies.json`. `config` configures CMake, and `build` builds incrementally, with executables under `build/bin/` by default. `vcpkg.json` manages uni-algo and nlohmann-json; `codegen/zh2hans_codegen.py` generates C++ tables for traditional-to-simplified conversion during configuration.
+
+## Build options
+
+The following options can be set during CMake configuration:
+
+| Option | Purpose |
+| --- | --- |
+| `PHONO_USE_INSTALLED_EXECUTORCH` | Use a separately installed ExecuTorch; also set `CMAKE_PREFIX_PATH` |
+| `EXECUTORCH_SOURCE_DIR` | ExecuTorch source path; default: `third_party/executorch` |
+| `PHONO_XNNPACK_WEIGHT_CACHE` | Share XNNPACK packed weights; default: ON |
+| `PHONO_OPS_CONFIG_DIR` | Operator manifest directory; default: `ops_config/` |
+| `PHONO_OPS_MANIFESTS` | Explicit manifests to merge; otherwise selected from the manifest directory |
+| `PHONO_DTYPE_SELECTIVE_BUILD` | Further prune dtype variants using the manifests; default: **OFF** |
+
+PhonoP2C's export task produces per-model and merged operator manifests. Place the required manifests in `ops_config/` and configure and build again to register the union of their operators. Without manifests, the full kernel library is built.
+
+Dtype pruning is independent of operator pruning. When enabled, the build generates `selected_op_variants.h` from the merged manifests and retains the corresponding dtype variants. Standard SDK builds and `pixi run config` explicitly disable dtype pruning. For a custom build, override it after running that task:
+
+```sh
+pixi run cmake -S . -B build -DPHONO_DTYPE_SELECTIVE_BUILD=ON
+pixi run build
+```
+
+## Model tests and performance measurement
+
+Set `PHONO_TEST_MODEL_DIR` to a complete v2.2 model package before running CTest; otherwise model tests are skipped. Release validation requires them to execute using `PHONO_REQUIRE_TEST_MODEL=1`; see the SDK guide.
+
+From the repository root, pass a model directory, iteration count, and warmup count (use `.exe` on Windows):
+
+```sh
+build/bin/performance_benchmark <model-dir> 20 5
+```
+
+The program reports CSV measurements for model-load latency and RSS, individual model methods, generation across history and pinyin window lengths, incremental fill, and microbenchmarks for cache clearing, beam reordering, and session reset. Input construction, context filling, and cache initialization before each sample are excluded from its timing.
