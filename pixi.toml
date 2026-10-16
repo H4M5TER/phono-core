@@ -16,6 +16,8 @@ cmake = "*"
 pip = "*"
 just = "*"
 
+huggingface_hub = "*"
+
 c-compiler = "*"
 cxx-compiler = "*"
 
@@ -39,6 +41,7 @@ setup = """
   mkdir -p third_party/executorch
   just prepare-executorch
 """
+prepare-models = "just prepare-models"
 format = "black . && isort ."
 lint = "flake8 . && mypy ."
 config = "cmake --preset $CMAKE_BUILD_DIR"
