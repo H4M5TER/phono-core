@@ -31,6 +31,8 @@ CMAKE_BUILD_DIR = "linux-native"
 CMAKE_BUILD_DIR = "macos-native"
 [target.win-64.activation.env]
 CMAKE_BUILD_DIR = "windows-native"
+[target.win-64.tasks]
+config = "unset CMAKE_GENERATOR_PLATFORM && unset CMAKE_GENERATOR_TOOLSET && cmake --preset $CMAKE_BUILD_DIR" # for ninja
 
 [tasks]
 setup = """
@@ -39,9 +41,9 @@ setup = """
 """
 format = "black . && isort ."
 lint = "flake8 . && mypy ."
-config = "cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DPHONO_DTYPE_SELECTIVE_BUILD=OFF"
-build = "cmake --build build"
-test = "ctest --test-dir build --output-on-failure"
+config = "cmake --preset $CMAKE_BUILD_DIR"
+build = "cmake --build --preset $CMAKE_BUILD_DIR"
+install = "cmake --build --preset $CMAKE_BUILD_DIR --target install"
 
 [environments]
 default = { features = [], solve-group = "default" }
