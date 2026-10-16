@@ -489,10 +489,18 @@ if(BUILD_TESTING)
   endif()
   add_test(NAME phono_engine_tests COMMAND phono_engine_tests)
   set_tests_properties(phono_engine_tests PROPERTIES LABELS model SKIP_RETURN_CODE 77)
+  set_tests_properties(phono_engine_tests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
   add_executable(phono_ime_editor_tests tests/ime_editor_tests.cpp)
   target_include_directories(phono_ime_editor_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME phono_ime_editor_tests COMMAND phono_ime_editor_tests)
   set_tests_properties(phono_core_tests phono_capi_tests phono_ime_editor_tests
     PROPERTIES LABELS unit)
+  set_tests_properties(
+    phono_capi_tests
+    phono_engine_tests
+    phono_ime_editor_tests
+    PROPERTIES
+        ENVIRONMENT_MODIFICATION "LD_LIBRARY_PATH=path_list_prepend:$<TARGET_FILE_DIR:phono_core_shared>;DYLD_LIBRARY_PATH=path_list_prepend:$<TARGET_FILE_DIR:phono_core_shared>;PATH=path_list_prepend:$<TARGET_FILE_DIR:phono_core_shared>"
+  )
 endif()
