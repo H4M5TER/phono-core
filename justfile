@@ -33,3 +33,7 @@ prepare-executorch:
   git fetch --depth 1 origin {{EXECUTORCH_REF}}
   git checkout --detach {{EXECUTORCH_REF}}
   git submodule update --init --recursive --depth 1 {{EXECUTORCH_SUBS}}
+
+prepare-models:
+  hf download afirelily/phonop2c_v2_2_base_w4a8_model --local-dir cache/models/w4a8
+  hf download afirelily/phonop2c_v2_2_base_w8a8_model --local-dir cache/models/w8a8

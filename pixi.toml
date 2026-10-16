@@ -32,13 +32,14 @@ CMAKE_BUILD_DIR = "linux-native"
 [target.osx-arm64.activation.env]
 CMAKE_BUILD_DIR = "macos-native"
 [target.win-64.activation.env]
-CMAKE_BUILD_DIR = "windows-native"
+CMAKE_BUILD_DIR = "windows-native-msbuild"
 
 [tasks]
 setup = """
   mkdir -p third_party/executorch
   just prepare-executorch
 """
+prepare-models = "just prepare-models"
 format = "black . && isort ."
 lint = "flake8 . && mypy ."
 config = "cmake --preset $CMAKE_BUILD_DIR"
