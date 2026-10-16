@@ -19,6 +19,10 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+if (MSVC)
+  add_compile_options(/utf-8)
+endif()
+
 # Set MSVC runtime library to MT to avoid DLL dependencies on Windows.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 

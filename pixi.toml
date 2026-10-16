@@ -16,6 +16,8 @@ cmake = "*"
 pip = "*"
 just = "*"
 
+huggingface_hub = "*"
+
 c-compiler = "*"
 cxx-compiler = "*"
 
@@ -39,8 +41,9 @@ setup = """
 """
 format = "black . && isort ."
 lint = "flake8 . && mypy ."
-config = "cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DPHONO_DTYPE_SELECTIVE_BUILD=OFF"
-build = "cmake --build build"
+config = "cmake --preset $CMAKE_BUILD_DIR"
+build = "cmake --build --preset $CMAKE_BUILD_DIR"
+install = "cmake --build --preset $CMAKE_BUILD_DIR --target install"
 
 [environments]
 default = { features = [], solve-group = "default" }
