@@ -11,6 +11,7 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/dist/${presetName}",
       "cacheVariables": {
+        "BUILD_TESTING": "ON",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
         "CMAKE_INSTALL_LIBDIR": "lib",
@@ -99,6 +100,31 @@
     {
       "name": "android-armv8",
       "configurePreset": "android-armv8"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "base-test",
+      "hidden": true,
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-native",
+      "configurePreset": "linux-native"
+    },
+    {
+      "name": "macos-native",
+      "configurePreset": "macos-native"
+    },
+    {
+      "name": "windows-native",
+      "configurePreset": "windows-native"
     }
   ]
 }

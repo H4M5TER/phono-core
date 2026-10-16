@@ -44,6 +44,7 @@ lint = "flake8 . && mypy ."
 config = "cmake --preset $CMAKE_BUILD_DIR"
 build = "cmake --build --preset $CMAKE_BUILD_DIR"
 install = "cmake --build --preset $CMAKE_BUILD_DIR --target install"
+test = "ctest --preset $CMAKE_BUILD_DIR"
 
 [environments]
 default = { features = [], solve-group = "default" }

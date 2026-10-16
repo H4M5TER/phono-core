@@ -474,4 +474,11 @@ if(BUILD_TESTING)
   add_test(NAME phono_ime_editor_tests COMMAND phono_ime_editor_tests)
   set_tests_properties(phono_core_tests phono_capi_tests phono_ime_editor_tests
     PROPERTIES LABELS unit)
+  set_tests_properties(
+    phono_capi_tests
+    phono_engine_tests
+    phono_ime_editor_tests
+    PROPERTIES
+        ENVIRONMENT "LD_LIBRARY_PATH=$<TARGET_FILE_DIR:phono_core_shared>:$ENV{LD_LIBRARY_PATH}"
+  )
 endif()
