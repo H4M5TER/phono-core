@@ -443,6 +443,32 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phono-coreConfig.cmake"
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/phono-core COMPONENT sdk)
 install(FILES VERSION.txt DESTINATION ${CMAKE_INSTALL_DATADIR}/phono-core RENAME VERSION COMPONENT sdk)
 
+function(install_third_party_licenses)
+    set(options "")
+    set(oneValueArgs SOURCE_DIR)
+    set(multiValueArgs "")
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    file(GLOB _license_files
+        LIST_DIRECTORIES false
+        CONFIGURE_DEPENDS
+        "${ARG_SOURCE_DIR}/third[_-]party/*/LICENSE*"
+        "${ARG_SOURCE_DIR}/third[_-]party/*/COPYING*"
+    )
+
+    foreach(_file IN LISTS _license_files)
+        cmake_path(GET _file PARENT_PATH _dir)
+        get_filename_component(_lib "${_dir}" NAME)
+        install(FILES "${_file}"
+                DESTINATION "share/licenses/${_lib}"
+        )
+    endforeach()
+endfunction()
+install_third_party_licenses(SOURCE_DIR ${CMAKE_SOURCE_DIR})
+install_third_party_licenses(SOURCE_DIR ${EXECUTORCH_SOURCE_DIR})
+install_third_party_licenses(SOURCE_DIR ${EXECUTORCH_SOURCE_DIR}/backends/xnnpack)
+install_third_party_licenses(SOURCE_DIR ${EXECUTORCH_SOURCE_DIR}/kernels/optimized)
+
 # ═══════════════════════════════════════════════════════════════════════
 # Demo: links libphono_core.so and talks to it exclusively through the stable
 # C interface.
