@@ -12,6 +12,7 @@ python = "=3.13.15"
 ninja = "*"
 cmake = "*"
 pip = "*"
+just = "*"
 
 c-compiler = "*"
 cxx-compiler = "*"
@@ -24,16 +25,10 @@ pyyaml = "==6.0.3"
 torch = { url = "https://download.pytorch.org/whl/cpu/torch-2.14.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl" }
 
 [tasks]
-# Fetch the ExecuTorch source and initialize *only* the submodules phono-core
-# actually needs for its CMake configuration:
-#   - third-party/{flatbuffers,flatcc,json,gflags}: added unconditionally by
-#     executorch's third-party/CMakeLists.txt
-#   - backends/xnnpack/third-party/{FP16,FXdiv,XNNPACK,cpuinfo,pthreadpool}:
-#     required by the XNNPACK backend (EXECUTORCH_BUILD_XNNPACK=ON) and the
-#     default cpuinfo/pthreadpool build
-# googletest is intentionally excluded: phono-core builds BUILD_TESTING=OFF for
-# the ExecuTorch sub-build (it has its own hand-rolled CTest suite).
-setup = "python setup_executorch.py"
+setup = """
+  mkdir -p third_party/executorch
+  just prepare-executorch
+"""
 format = "black . && isort ."
 lint = "flake8 . && mypy ."
 config = "cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DPHONO_DTYPE_SELECTIVE_BUILD=OFF"

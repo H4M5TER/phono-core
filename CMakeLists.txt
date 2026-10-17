@@ -1,16 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
 
-# Keep an explicitly supplied triplet intact for cross-compilation.
-if(CMAKE_HOST_WIN32 AND NOT DEFINED VCPKG_TARGET_TRIPLET)
-  set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING
-      "vcpkg triplet used to build phono-core dependencies")
-endif()
-
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
-  set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-      CACHE FILEPATH "vcpkg toolchain file")
-endif()
-
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt" PHONO_VERSION LIMIT_COUNT 1)
 project(phono_core VERSION "${PHONO_VERSION}" LANGUAGES CXX)
 
@@ -252,7 +241,11 @@ else()
   endif()
 endif()
 
-find_package(uni-algo CONFIG REQUIRED)
+include(FetchContent)
+FetchContent_Declare(uni-algo
+  URL https://github.com/uni-algo/uni-algo/archive/v1.2.0.tar.gz
+  FIND_PACKAGE_ARGS CONFIG) # fallback to build
+FetchContent_MakeAvailable(uni-algo)
 set(PHONO_UNI_ALGO_LIBRARIES uni-algo::uni-algo)
 
 # ═══════════════════════════════════════════════════════════════════════
