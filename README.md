@@ -1,8 +1,8 @@
 # phono-core
 
-phono-core 是 PhonoP2C 的 C++ 推理引擎，根据中文上文和拼音生成汉字候选，支持连续拼音自动分词、上下文复用和取消生成。项目基于 ExecuTorch，提供 C ABI，供输入法和其他应用集成。目前提供 Linux x86_64 和 Windows x64 的 SDK 与演示程序。
+phono-core 是 PhonoP2C 的 C++ 推理引擎，根据中文上文和拼音生成汉字候选，支持连续拼音自动分词、上下文复用和取消生成。项目基于 ExecuTorch，提供 C ABI，供输入法和其他应用集成。目前提供 Linux x86_64 和 Windows x64 的 SDK。
 
-phono-core is the C++ inference engine for PhonoP2C. It generates Chinese candidates from preceding Chinese text and pinyin, with automatic segmentation of continuous pinyin, context reuse, and generation cancellation. Built on ExecuTorch, it exposes a C ABI for input methods and other applications. SDKs and demos are available for Linux x86_64 and Windows x64.
+phono-core is the C++ inference engine for PhonoP2C. It generates Chinese candidates from preceding Chinese text and pinyin, with automatic segmentation of continuous pinyin, context reuse, and generation cancellation. Built on ExecuTorch, it exposes a C ABI for input methods and other applications. SDKs are available for Linux x86_64 and Windows x64.
 
 [PhonoP2C](https://github.com/phono-project/PhonoP2C) 提供模型训练与导出工具；[Euphony](https://github.com/phono-project/Euphony) 是使用本引擎的 Windows 输入法。
 
@@ -10,28 +10,28 @@ phono-core is the C++ inference engine for PhonoP2C. It generates Chinese candid
 
 ## 快速体验 / Try the engine
 
-从 [Releases](https://github.com/phono-project/phono-core/releases) 下载并解压对应平台的 `phono-core-demos-X.Y.Z-<platform>` 包。另下载一个完整的 v2.2 模型包：[W4A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w4a8_model) 或 [W8A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w8a8_model)。安装 Hugging Face CLI 后，例如：
+按[构建指南](docs/zh-cn/build.md)从源码编译演示程序。另下载一个完整的 v2.2 模型包：[W4A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w4a8_model) 或 [W8A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w8a8_model)。安装 Hugging Face CLI 后，例如：
 
-Download and extract `phono-core-demos-X.Y.Z-<platform>` for your platform from [Releases](https://github.com/phono-project/phono-core/releases). Download a complete v2.2 model package separately: [W4A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w4a8_model) or [W8A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w8a8_model). With the Hugging Face CLI installed, for example:
+Build the demos from source using the [build guide](docs/en-us/build.md). Download a complete v2.2 model package separately: [W4A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w4a8_model) or [W8A8](https://huggingface.co/afirelily/phonop2c_v2_2_base_w8a8_model). With the Hugging Face CLI installed, for example:
 
 ```sh
 hf download afirelily/phonop2c_v2_2_base_w4a8_model --local-dir ./phonop2c_v2_2_base_w4a8_model
 ```
 
-在演示包的解压目录运行，将 `<model-dir>` 替换为模型目录的绝对路径。
+在仓库根目录运行，将 `<model-dir>` 替换为模型目录的绝对路径。
 
-Run from the extracted demo directory, replacing `<model-dir>` with the absolute path to the model.
+Run from the repository root, replacing `<model-dir>` with the absolute path to the model.
 
 Linux:
 
 ```sh
-./run-demo.sh cli_demo_capi <model-dir>
+./build/bin/cli_demo_capi <model-dir>
 ```
 
 Windows PowerShell:
 
 ```powershell
-.\bin\cli_demo_capi.exe "<model-dir>" .\share\phono-core\core_configs\engine_config.json .\share\phono-core\core_configs\context_manager.json
+.\build\bin\cli_demo_capi.exe "<model-dir>"
 ```
 
 启动后输入连续拼音（例如 `nihaoma`）并回车，程序显示拼音切分结果和汉字候选。将命令中的 `cli_demo_capi` 替换为 `ime_demo_capi` 可体验连续输入和编辑：左右键移动光标，Backspace / Delete 删除，Ctrl-C 退出。
@@ -40,9 +40,9 @@ Enter continuous pinyin such as `nihaoma` and press Enter to see segmentation an
 
 ## 接入项目 / Integrate into an application
 
-从 Releases 下载对应平台的 `phono-core-sdk-X.Y.Z-<platform>`，按 [SDK 说明](docs/sdk-release.md)校验并解压。配置应用时通过 `CMAKE_PREFIX_PATH` 指定 SDK 目录，然后链接：
+从 Releases 下载对应平台的 `phono-core-sdk-X.Y.Z-<platform>`，按 [SDK 说明](docs/sdk-release.md)解压。配置应用时通过 `CMAKE_PREFIX_PATH` 指定 SDK 目录，然后链接：
 
-Download `phono-core-sdk-X.Y.Z-<platform>` from Releases, verify and extract it as described in the [SDK guide](docs/sdk-release.md). Set `CMAKE_PREFIX_PATH` to the SDK directory when configuring your application, then link:
+Download `phono-core-sdk-X.Y.Z-<platform>` from Releases and extract it as described in the [SDK guide](docs/sdk-release.md). Set `CMAKE_PREFIX_PATH` to the SDK directory when configuring your application, then link:
 
 ```cmake
 find_package(phono-core CONFIG REQUIRED)

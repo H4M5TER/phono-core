@@ -61,8 +61,7 @@ if __name__ == "__main__":
          f"-DPython3_EXECUTABLE={sys.executable}", f"-DEXECUTORCH_SOURCE_DIR={executorch}",
          f"-DPHONO_RUNTIME_OUTPUT_DIR={build / 'bin'}"], environment)
     run(["cmake", "--build", build, "--parallel", args.jobs, "--target", "phono_core_shared",
-         "phono_core_tests", "phono_capi_tests", "phono_engine_tests", "phono_ime_editor_tests",
-         "cli_demo_capi", "ime_demo_capi"], environment)
+         "phono_core_tests", "phono_capi_tests", "phono_engine_tests", "phono_ime_editor_tests"], environment)
     environment["PATH"] = str(build / "bin") + os.pathsep + environment["PATH"]
     run(["ctest", "--test-dir", build, "-L", "unit", "--output-on-failure", "--no-tests=error"], environment)
     run(["cmake", "--install", build, "--prefix", prefix, "--component", "sdk"], environment)

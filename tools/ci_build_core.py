@@ -115,7 +115,7 @@ def main():
         env=environment)
     run(["cmake", "--build", build / "native", "--parallel", args.jobs,
          "--target", "phono_core_shared", "phono_capi_tests", "phono_core_tests",
-         "phono_engine_tests", "phono_ime_editor_tests", "cli_demo_capi", "ime_demo_capi"], env=environment)
+         "phono_engine_tests", "phono_ime_editor_tests"], env=environment)
     # The build DSO intentionally has no RPATH. Only this isolated smoke test
     # receives its build directory; nothing persists to the package or Fcitx.
     test_env = {**environment, "LD_LIBRARY_PATH": str(build / "runtime")}

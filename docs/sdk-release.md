@@ -6,9 +6,9 @@ phono-core owns its version, with the root `VERSION.txt` as the single source. R
 
 ## 使用 SDK / Consume the SDK
 
-从 [GitHub Releases](https://github.com/phono-project/phono-core/releases) 下载对应版本的平台 SDK 和 `SHA256SUMS-<platform>.txt`，校验后解压到任意 SDK 前缀。Linux x86_64 使用 `.tar.gz`，Windows x64 使用 `.zip`；资产名为 `phono-core-sdk-X.Y.Z-linux-x86_64.tar.gz` 或 `phono-core-sdk-X.Y.Z-windows-x64.zip`。模型不随 SDK 打包。
+从 [GitHub Releases](https://github.com/phono-project/phono-core/releases) 下载对应版本的平台 SDK，解压到任意 SDK 前缀。Linux x86_64 使用 `.tar.gz`，Windows x64 使用 `.zip`；资产名为 `phono-core-sdk-X.Y.Z-linux-x86_64.tar.gz` 或 `phono-core-sdk-X.Y.Z-windows-x64.zip`。模型不随 SDK 打包。
 
-Download the platform SDK and `SHA256SUMS-<platform>.txt` for the desired version from [GitHub Releases](https://github.com/phono-project/phono-core/releases), verify the checksum, and extract into an SDK prefix. Linux x86_64 uses `.tar.gz` and Windows x64 uses `.zip`; assets are named `phono-core-sdk-X.Y.Z-linux-x86_64.tar.gz` or `phono-core-sdk-X.Y.Z-windows-x64.zip`. Models are distributed separately.
+Download the platform SDK for the desired version from [GitHub Releases](https://github.com/phono-project/phono-core/releases) and extract into an SDK prefix. Linux x86_64 uses `.tar.gz` and Windows x64 uses `.zip`; assets are named `phono-core-sdk-X.Y.Z-linux-x86_64.tar.gz` or `phono-core-sdk-X.Y.Z-windows-x64.zip`. Models are distributed separately.
 
 SDK 包含 `include/phono-core/phono_api.h`、Linux 的 `lib/libphono_core.so` 或 Windows 的 `bin/phono_core.dll` 和 `lib/phono_core.lib`、`lib/cmake/phono-core`、`share/licenses/phono-core`、`share/phono-core/VERSION` 及 `build-info.json`。安装后的 C API 可以由纯 C 工程链接，不要求消费者安装 ExecuTorch、Python 或 core 源码。
 
@@ -82,10 +82,10 @@ PR builds cover both platforms, the `unit` CTests, and an installed C-only consu
 
 ## 维护流程 / Maintainer workflow
 
-完成代码、依赖及版本更新并合并到默认分支后，创建 `vX.Y.Z` 标签，再在 GitHub 发布对应 Release（正式版或预发布均可）。工作流检出该标签，校验版本与默认分支归属，完成构建、测试、SDK 与演示程序打包，然后上传两个平台的附件及校验和。只推送标签不会触发交付；只有上传任务拥有写权限。
+完成代码、依赖及版本更新并合并到默认分支后，创建 `vX.Y.Z` 标签，再在 GitHub 发布对应 Release（正式版或预发布均可）。工作流检出该标签，校验版本与默认分支归属，完成构建、测试、SDK 打包，然后只上传两个平台的 SDK 压缩包。只推送标签不会触发交付；只有上传任务拥有写权限。
 
-After merging code, dependency, and version updates into the default branch, create a `vX.Y.Z` tag and publish its GitHub Release, either stable or prerelease. The workflow checks out the tag, validates the version and default-branch ancestry, builds and tests, packages the SDK and demos, and uploads both platforms' assets and checksums. Pushing a tag alone does not deliver artifacts; only the upload job has write permission.
+After merging code, dependency, and version updates into the default branch, create a `vX.Y.Z` tag and publish its GitHub Release, either stable or prerelease. The workflow checks out the tag, validates the version and default-branch ancestry, builds and tests, packages the SDK, and uploads only the two platform SDK archives. Pushing a tag alone does not deliver artifacts; only the upload job has write permission.
 
-演示程序另打包为 `phono-core-demos-X.Y.Z-<platform>`。模型单独下载，Windows 调用演示程序时传入模型目录和包内 `share/phono-core/core_configs` 下的两份配置；Linux 的 `run-demo.sh` 自动传入配置，运行方式为 `./run-demo.sh cli_demo_capi <model-dir>`。
+演示程序保留为源码示例，按[构建指南](zh-cn/build.md)本地编译，不随 Release 发布。
 
-Demos are packaged separately as `phono-core-demos-X.Y.Z-<platform>`. Download models separately. On Windows, pass the model directory and both configs from the archive's `share/phono-core/core_configs` directory. Linux `run-demo.sh` supplies the configs automatically: `./run-demo.sh cli_demo_capi <model-dir>`.
+Demos remain source examples for [local builds](en-us/build.md) and are not published in Releases.

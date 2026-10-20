@@ -83,18 +83,19 @@ jobs:
             runtime=build/windows-sdk/bin
           fi
           pixi run --locked --manifest-path "$PIXI_MANIFEST" python tools/test_models.py --build-dir "$native" --runtime-dir "$runtime" --model-dir "$(cat build/w4a8-path.txt)" --model-dir "$(cat build/w8a8-path.txt)"
-      - name: Package tested SDK and demos
+      - name: Package tested SDK
         shell: bash
         env:
           PLATFORM: ${{ matrix.platform }}
           PIXI_MANIFEST: ${{ matrix.manifest }}
         run: |
-          if test "$PLATFORM" = linux-x86_64; then native=build/linux-sdk/native; else native=build/windows-sdk; fi
-          pixi run --locked --manifest-path "$PIXI_MANIFEST" python tools/package_sdk.py --prefix build/sdk --build-dir "$native" --platform "$PLATFORM"
+          pixi run --locked --manifest-path "$PIXI_MANIFEST" python tools/package_sdk.py --prefix build/sdk --platform "$PLATFORM"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: phono-core-${{ matrix.platform }}
-          path: dist/*
+          path: |
+            dist/phono-core-sdk-*-${{ matrix.platform }}.tar.gz
+            dist/phono-core-sdk-*-${{ matrix.platform }}.zip
           if-no-files-found: error
 
   upload:
@@ -114,4 +115,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" dist/* --clobber
+        run: gh release upload "$RELEASE_TAG" dist/phono-core-sdk-*-linux-x86_64.tar.gz dist/phono-core-sdk-*-windows-x64.zip --clobber
