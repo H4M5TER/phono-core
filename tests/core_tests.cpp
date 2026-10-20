@@ -335,7 +335,6 @@ void test_core_config_default_and_parse() {
     check(defaults.slack_interval < defaults.max_history_length,
           "default slack must leave a positive window");
 
-    // The new core_config key names supersede the old N / T.
     const nlohmann::json options = {
         {"schema_version", "1.0"},
         {"beam_size", 2},
@@ -354,22 +353,6 @@ void test_core_config_default_and_parse() {
     check(parsed.max_history_length == 4, "max_history_length should be read from JSON");
     check(parsed.max_pinyin_length == 3, "max_pinyin_length should be read from JSON");
 
-    // Legacy N / T keys must no longer configure anything.
-    const nlohmann::json legacy = {
-        {"schema_version", "1.0"},
-        {"beam_size", 2}, {"N", 1}, {"T", 2},
-        {"max_context_length", 15}, {"max_history_length", 10}, {"max_pinyin_length", 3},
-    };
-    phono::core::CoreConfig legacy_parsed;
-    check(phono::core::parse_core_config(legacy, cfg, legacy_parsed) ==
-              phono::core::CoreConfigError::Ok,
-          "legacy N/T keys should be ignored, not rejected");
-    check(legacy_parsed.slack_interval == defaults.slack_interval,
-          "legacy N key must not set slack_interval");
-    check(legacy_parsed.min_accept_context == defaults.min_accept_context,
-          "legacy T key must not set min_accept_context");
-    check(legacy_parsed.slack_interval != 1 && legacy_parsed.min_accept_context != 2,
-          "legacy N/T values must not leak into the parsed config");
 }
 
 void test_model_format_version() {

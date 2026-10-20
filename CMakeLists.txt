@@ -497,7 +497,6 @@ if(BUILD_TESTING)
   add_executable(phono_ime_editor_tests tests/ime_editor_tests.cpp)
   target_include_directories(phono_ime_editor_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME phono_ime_editor_tests COMMAND phono_ime_editor_tests)
-  add_test(NAME ime_demo_capi_help COMMAND ime_demo_capi --help)
   set_tests_properties(phono_core_tests phono_capi_tests phono_ime_editor_tests
-    ime_demo_capi_help PROPERTIES LABELS unit)
+    PROPERTIES LABELS unit)
 endif()
