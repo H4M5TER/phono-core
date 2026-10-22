@@ -64,12 +64,14 @@ jobs:
       - name: prepare models
         if: steps.models_cache.outputs.cache-hit != 'true'
         run: pixi run prepare-models
-      - name: test models
-        run: |
-          export PHONO_TEST_MODEL_DIR=$(readlink -m cache/models/w4a8/)
-          pixi run test
-          export PHONO_TEST_MODEL_DIR=$(readlink -m cache/models/w8a8/)
-          pixi run test
+      - name: test models (w4a8)
+        env:
+          PHONO_TEST_MODEL_DIR: ${{ github.workspace }}/cache/models/w4a8
+        run: pixi run test
+      - name: test models (w8a8)
+        env:
+          PHONO_TEST_MODEL_DIR: ${{ github.workspace }}/cache/models/w8a8
+        run: pixi run test
       - uses: nttld/setup-ndk@v1
         if: matrix.target == 'linux-64'
         with:
