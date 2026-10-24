@@ -478,6 +478,17 @@ if(BUILD_TESTING)
   add_executable(phono_capi_tests tests/capi_tests.cpp)
   target_link_libraries(phono_capi_tests PRIVATE phono_core_shared)
   add_test(NAME phono_capi_tests COMMAND phono_capi_tests)
+  # Test a no-RPATH build without installing the DSO or changing the caller's
+  # environment. This search path applies only to the CTest child process.
+  if(WIN32)
+    set(_phono_test_loader_path PATH)
+  elseif(APPLE)
+    set(_phono_test_loader_path DYLD_LIBRARY_PATH)
+  else()
+    set(_phono_test_loader_path LD_LIBRARY_PATH)
+  endif()
+  set_tests_properties(phono_capi_tests PROPERTIES ENVIRONMENT_MODIFICATION
+    "${_phono_test_loader_path}=path_list_prepend:$<TARGET_FILE_DIR:phono_core_shared>")
 
   # Model-based session tests skip unless PHONO_TEST_MODEL_DIR is set to
   # a v2 model package directory.

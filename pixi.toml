@@ -38,6 +38,7 @@ format = "black . && isort ."
 lint = "flake8 . && mypy ."
 config = "cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DPHONO_DTYPE_SELECTIVE_BUILD=OFF"
 build = "cmake --build build"
+test = "ctest --test-dir build --output-on-failure"
 
 [environments]
 default = { features = [], solve-group = "default" }
