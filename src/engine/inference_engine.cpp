@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 
 #include <executorch/extension/tensor/tensor.h>
@@ -150,19 +151,22 @@ InferenceEngine::InferenceEngine(const std::string& package_root,
     using executorch::runtime::Tag;
     auto pre1_meta = pre_module_->method_meta(config_.runtime.pre_pass1_method);
     auto pre2_meta = pre_module_->method_meta(config_.runtime.pre_pass2_method);
-    pre_pass1_cache_only_ = pre1_meta->num_inputs() == 5 && pre1_meta->num_outputs() == 1;
+    cache_window_input_ = pre1_meta->num_inputs() == 6;
+    pre_pass1_cache_only_ = (pre1_meta->num_inputs() == 5 || cache_window_input_) &&
+                           pre1_meta->num_outputs() == 1;
     if (pre_pass1_cache_only_) {
-        validate_method(*pre_module_, config_.runtime.pre_pass1_method,
-                        {Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Bool, Tag::Bool},
-                        {Tag::Tensor});
+        std::vector<Tag> tags{Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Bool, Tag::Bool};
+        if (cache_window_input_) tags.push_back(Tag::Tensor);
+        validate_method(*pre_module_, config_.runtime.pre_pass1_method, tags, {Tag::Tensor});
     } else {
         validate_method(*pre_module_, config_.runtime.pre_pass1_method,
                         {Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Bool},
                         {Tag::Tensor, Tag::Tensor});
     }
-    validate_method(*pre_module_, config_.runtime.pre_pass2_method,
-                    {Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Tensor,
-                     Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Bool},
+    std::vector<Tag> decode_tags{Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Tensor,
+                                 Tag::Tensor, Tag::Tensor, Tag::Tensor, Tag::Bool};
+    if (cache_window_input_) decode_tags.push_back(Tag::Tensor);
+    validate_method(*pre_module_, config_.runtime.pre_pass2_method, decode_tags,
                     {Tag::Tensor, Tag::Tensor});
     validate_method(*pre_module_, config_.runtime.pre_cross_kv_method,
                     {Tag::Tensor}, {Tag::Tensor});
@@ -343,6 +347,9 @@ InferenceError InferenceEngine::run_pre_pass1(const std::vector<int32_t>& input_
         return InferenceError::InvalidArgument;
     }
     const int32_t sequence_length = static_cast<int32_t>(input_ids.size() / batch_size);
+    if (current_seqlen < 0 || sequence_length > config_.pre_model.max_seqlen - current_seqlen) {
+        return InferenceError::InvalidArgument;
+    }
     std::vector<int64_t> input_data(input_ids.begin(), input_ids.end());
     int64_t position_data = current_seqlen;
 
@@ -358,6 +365,15 @@ InferenceError InferenceEngine::run_pre_pass1(const std::vector<int32_t>& input_
     if (pre_pass1_cache_only_) {
         inputs.emplace_back(false);
     }
+    std::vector<int64_t> window_data;
+    executorch::extension::TensorPtr window;
+    if (cache_window_input_) {
+        window_data.resize(current_seqlen + sequence_length);
+        std::iota(window_data.begin(), window_data.end(), 0);
+        window = make_tensor_ptr(std::vector<int32_t>{static_cast<int32_t>(window_data.size())},
+                                 window_data.data(), ScalarType::Long);
+        inputs.emplace_back(*window);
+    }
     auto result = pre_module_->execute(config_.runtime.pre_pass1_method, inputs);
     return runtime_error_to_status(result.error());
 }
@@ -370,7 +386,8 @@ InferenceError InferenceEngine::run_pre_pass2(const std::vector<int32_t>& input_
                                               int32_t cross_q_pos_start,
                                               DecoderModelOutput& output) const {
     const int32_t batch_size = static_cast<int32_t>(input_ids.size());
-    if (batch_size <= 0 || !all_equal(current_seqlen) ||
+    if (batch_size <= 0 || current_seqlen.empty() || !all_equal(current_seqlen) ||
+        current_seqlen.front() < 0 || current_seqlen.front() >= config_.pre_model.max_seqlen ||
         post.sequence_length <= 0 || post.hidden_dim <= 0 || post.candidate_width <= 0 ||
         post.batch_size != 1 ||
         post.hidden.size() != static_cast<size_t>(post.sequence_length) * post.hidden_dim ||
@@ -435,6 +452,15 @@ InferenceError InferenceEngine::run_pre_pass2(const std::vector<int32_t>& input_
         EValue(*candidates),
         EValue(true),
     };
+    std::vector<int64_t> window_data;
+    executorch::extension::TensorPtr window;
+    if (cache_window_input_) {
+        window_data.resize(current_seqlen.front() + 1);
+        std::iota(window_data.begin(), window_data.end(), 0);
+        window = make_tensor_ptr(std::vector<int32_t>{static_cast<int32_t>(window_data.size())},
+                                 window_data.data(), ScalarType::Long);
+        inputs.emplace_back(*window);
+    }
     auto result = pre_module_->execute(config_.runtime.pre_pass2_method, inputs);
     if (!result.ok() || result->empty()) {
         return result.ok() ? InferenceError::ModelError
