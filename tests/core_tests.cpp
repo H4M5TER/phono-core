@@ -3,6 +3,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cmath>
+#include <limits>
+#include <tuple>
+#include <executorch/runtime/kernel/kernel_includes.h>
 
 #include "algo/trie.hpp"
 #include "algo/pinyin_segment.hpp"
@@ -12,6 +16,12 @@
 #include "core/text_normalizer.hpp"
 #include "core/pinyin_normalizer.hpp"
 #include "core/tokenizer.hpp"
+
+namespace phono::ops {
+std::tuple<executorch::aten::Tensor&, executorch::aten::Tensor&> read_mhsa_kv_out(
+    executorch::runtime::KernelRuntimeContext&, const executorch::aten::Tensor&,
+    int64_t, int64_t, const executorch::aten::Tensor&, executorch::aten::Tensor&, executorch::aten::Tensor&);
+}
 
 namespace {
 
@@ -513,6 +523,59 @@ void test_engine_config_parse() {
           "letters cannot be configured as separators");
 }
 
+void test_bounded_cache_read() {
+    using namespace executorch;
+    for (int32_t end : {0, 3, 7}) {
+        auto cache = phono::context::make_zero_persistent_tensor({2, 2, 3, 7, 2, 4});
+        for (size_t i = 0; i < cache.storage->size(); ++i) {
+            const int32_t token = (i / 8) % 7;
+            (*cache.storage)[i] = token < end ? static_cast<float>(i + 1)
+                                            : std::numeric_limits<float>::quiet_NaN();
+        }
+        const std::vector<int32_t> shape{3, 7, 2, 4};
+        std::vector<float> k(3 * 7 * 8, -1), v(k.size(), -1);
+        auto kt = extension::make_tensor_ptr(shape, k.data(), aten::ScalarType::Float);
+        auto vt = extension::make_tensor_ptr(shape, v.data(), aten::ScalarType::Float);
+        std::vector<int64_t> keys(7, 0);
+        auto positions = extension::make_tensor_ptr({7}, keys.data(), aten::ScalarType::Long);
+        runtime::KernelRuntimeContext ctx;
+        phono::ops::read_mhsa_kv_out(ctx, *cache.tensor, end, 1, *positions, *kt, *vt);
+        check(ctx.failure_state() == runtime::Error::Ok, "bounded cache read should succeed");
+        for (int kv = 0; kv < 2; ++kv) {
+            const auto& output = kv == 0 ? k : v;
+            for (size_t i = 0; i < output.size(); ++i) {
+                const size_t source = (2 + kv) * output.size() + i;
+                const bool valid = (i / 8) % 7 < static_cast<size_t>(end);
+                check(output[i] == (valid ? (*cache.storage)[source] : 0.0f),
+                      "bounded read must preserve valid rows and zero poisoned future slots");
+                if (!valid) check(std::isnan((*cache.storage)[source]),
+                                  "bounded read must not modify the persistent cache");
+            }
+        }
+        for (const auto [bad_end, bad_layer] : {std::pair<int64_t,int64_t>{-1, 1}, {8, 1}, {3, -1}, {3, 2}}) {
+            runtime::KernelRuntimeContext bad;
+            phono::ops::read_mhsa_kv_out(bad, *cache.tensor, bad_end, bad_layer, *positions, *kt, *vt);
+            check(bad.failure_state() == runtime::Error::InvalidArgument,
+                  "bounded read must reject invalid positions and layers");
+        }
+        if (end > 0) {
+            auto short_positions = extension::make_tensor_ptr({end}, keys.data(), aten::ScalarType::Long);
+            std::vector<float> sk(3 * end * 8), sv(sk.size());
+            auto skt = extension::make_tensor_ptr({3, end, 2, 4}, sk.data(), aten::ScalarType::Float);
+            auto svt = extension::make_tensor_ptr({3, end, 2, 4}, sv.data(), aten::ScalarType::Float);
+            runtime::KernelRuntimeContext short_ctx;
+            phono::ops::read_mhsa_kv_out(short_ctx, *cache.tensor, end, 1, *short_positions, *skt, *svt);
+            check(short_ctx.failure_state() == runtime::Error::Ok, "exact window should succeed");
+            for (int kv = 0; kv < 2; ++kv) for (size_t i = 0; i < sk.size(); ++i) {
+                const size_t batch = i / (end * 8), within = i % (end * 8);
+                const size_t source = (2 + kv) * 3 * 7 * 8 + batch * 7 * 8 + within;
+                check((kv == 0 ? sk[i] : sv[i]) == (*cache.storage)[source],
+                      "exact window must respect the physical cache batch stride");
+            }
+        }
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -522,6 +585,7 @@ int main() {
     test_tokenizer_normalizes_and_skips_unknown();
     test_zh2hans_simplification();
     test_cache_slice_operations();
+    test_bounded_cache_read();
     test_context_auto_matching();
     test_core_config_default_and_parse();
     test_model_format_version();

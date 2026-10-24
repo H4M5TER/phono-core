@@ -1,6 +1,7 @@
 #include <executorch/runtime/kernel/kernel_includes.h>
 #include <executorch/extension/kernel_util/make_boxed_from_unboxed_functor.h>
 #include <cstring>
+#include <tuple>
 
 namespace phono::ops {
 
@@ -53,6 +54,58 @@ Tensor& update_mhsa_kv_out(
     return out;
 }
 
+std::tuple<Tensor&, Tensor&> read_mhsa_kv_out(
+    RuntimeContext& ctx, const Tensor& cache, int64_t end_pos,
+    int64_t layer_idx, const Tensor& positions, Tensor& out0, Tensor& out1) {
+    auto result = std::tie(out0, out1);
+    ET_KERNEL_CHECK(ctx, cache.dim() == 6 && cache.size(1) == 2,
+                    InvalidArgument, result);
+    ET_KERNEL_CHECK(ctx, layer_idx >= 0 && layer_idx < cache.size(0) &&
+                    positions.dim() == 1 && positions.numel() <= cache.size(3) &&
+                    end_pos >= 0 && end_pos <= positions.numel(), InvalidArgument, result);
+    ET_KERNEL_CHECK(ctx, torch::executor::tensor_is_default_dim_order(cache) &&
+                    torch::executor::tensor_is_default_dim_order(out0) &&
+                    torch::executor::tensor_is_default_dim_order(out1) &&
+                    cache.scalar_type() == out0.scalar_type() &&
+                    cache.scalar_type() == out1.scalar_type(), InvalidArgument, result);
+    Tensor::SizesType sizes[] = {cache.size(2), static_cast<Tensor::SizesType>(positions.numel()), cache.size(4), cache.size(5)};
+    ET_KERNEL_CHECK(ctx, executorch::runtime::resize_tensor(out0, {sizes, 4}) == executorch::runtime::Error::Ok &&
+                    executorch::runtime::resize_tensor(out1, {sizes, 4}) == executorch::runtime::Error::Ok,
+                    InvalidArgument, result);
+    const size_t token_bytes = cache.size(4) * cache.size(5) * cache.element_size();
+    const size_t valid_bytes = static_cast<size_t>(end_pos) * token_bytes;
+    const size_t batch_bytes = positions.numel() * token_bytes;
+    const auto strides = cache.strides();
+    const auto* source = cache.const_data_ptr<char>();
+    Tensor* outputs[] = {&out0, &out1};
+    for (int64_t kv = 0; kv < 2; ++kv) {
+        auto* destination = outputs[kv]->mutable_data_ptr<char>();
+        for (int64_t batch = 0; batch < cache.size(2); ++batch) {
+            const size_t offset = (layer_idx * strides[0] + kv * strides[1] +
+                                   batch * strides[2]) * cache.element_size();
+            if (valid_bytes) std::memcpy(destination, source + offset, valid_bytes);
+            if (batch_bytes > valid_bytes)
+                std::memset(destination + valid_bytes, 0, batch_bytes - valid_bytes);
+            destination += batch_bytes;
+        }
+    }
+    return result;
+}
+
 } // namespace phono::ops
 
 EXECUTORCH_LIBRARY(phono, "update_mhsa_kv.out", phono::ops::update_mhsa_kv_out);
+
+namespace {
+// ExecuTorch's convenience EXECUTORCH_LIBRARY wrapper supports one mutable
+// output. Use the ordinary boxed registration API for the K/V pair.
+void read_mhsa_kv_boxed(executorch::runtime::KernelRuntimeContext& ctx,
+                       executorch::runtime::Span<executorch::runtime::EValue*> args) {
+    phono::ops::read_mhsa_kv_out(ctx, args[0]->toTensor(), args[1]->toInt(),
+                                args[2]->toInt(), args[3]->toTensor(), args[4]->toTensor(), args[5]->toTensor());
+    executorch::runtime::internal::event_tracer_log_evalue(ctx.internal_event_tracer(), *args[4]);
+    executorch::runtime::internal::event_tracer_log_evalue(ctx.internal_event_tracer(), *args[5]);
+}
+const auto register_read_mhsa_kv = executorch::runtime::register_kernel(
+    executorch::runtime::Kernel("phono::read_mhsa_kv.out", read_mhsa_kv_boxed));
+}
