@@ -2,17 +2,19 @@
   "schema_version": 1,
   "executorch": {
     "url": "https://github.com/pytorch/executorch.git",
-    "commit": "1abaa87f3209dc9d391220293739f75dd877dd56",
+    "commit": "00f06544be6b674f2ce8c1a746b76f23cf585d21",
     "submodules": [
       "backends/xnnpack/third-party/FP16",
       "backends/xnnpack/third-party/FXdiv",
       "backends/xnnpack/third-party/XNNPACK",
       "backends/xnnpack/third-party/cpuinfo",
       "backends/xnnpack/third-party/pthreadpool",
+      "kernels/optimized/third-party/eigen",
       "third-party/flatbuffers",
       "third-party/flatcc",
       "third-party/gflags",
-      "third-party/json"
+      "third-party/json",
+      "third-party/pocketfft"
     ]
   },
   "uni_algo": {

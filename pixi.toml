@@ -31,6 +31,8 @@ torch = { url = "https://download.pytorch.org/whl/cpu/torch-2.14.0%2Bcpu-cp313-c
 #   - backends/xnnpack/third-party/{FP16,FXdiv,XNNPACK,cpuinfo,pthreadpool}:
 #     required by the XNNPACK backend (EXECUTORCH_BUILD_XNNPACK=ON) and the
 #     default cpuinfo/pthreadpool build
+#   - kernels/optimized/third-party/eigen and third-party/pocketfft:
+#     upstream optimized CPU kernels and their portable fallbacks
 # googletest is intentionally excluded: phono-core builds BUILD_TESTING=OFF for
 # the ExecuTorch sub-build (it has its own hand-rolled CTest suite).
 setup = "python setup_executorch.py"

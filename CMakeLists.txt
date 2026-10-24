@@ -37,6 +37,8 @@ option(PHONO_USE_INSTALLED_EXECUTORCH
        "Use a pre-built+installed ExecuTorch via find_package() instead of add_subdirectory()" OFF)
 option(PHONO_XNNPACK_WEIGHT_CACHE
        "Share XNNPACK packed weights across delegates" ON)
+option(PHONO_OPTIMIZED_CPU_KERNELS
+       "Use ExecuTorch optimized CPU kernels with portable fallbacks" ON)
 
 set(EXECUTORCH_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third_party/executorch" CACHE PATH
     "Path to an ExecuTorch source checkout, used when PHONO_USE_INSTALLED_EXECUTORCH=OFF")
@@ -210,6 +212,8 @@ else()
   set(EXECUTORCH_BUILD_EXTENSION_DATA_LOADER ON CACHE BOOL "" FORCE)
   set(EXECUTORCH_BUILD_EXTENSION_NAMED_DATA_MAP ON CACHE BOOL "" FORCE)
   set(EXECUTORCH_BUILD_XNNPACK ON CACHE BOOL "" FORCE)
+  set(EXECUTORCH_BUILD_KERNELS_OPTIMIZED ${PHONO_OPTIMIZED_CPU_KERNELS}
+      CACHE BOOL "" FORCE)
   set(EXECUTORCH_XNNPACK_ENABLE_WEIGHT_CACHE ${PHONO_XNNPACK_WEIGHT_CACHE}
       CACHE BOOL "" FORCE)
   set(EXECUTORCH_BUILD_KERNELS_LLM OFF CACHE BOOL "" FORCE)
@@ -345,6 +349,11 @@ function(phono_link_executorch TARGET VISIBILITY)
     target_link_libraries(${TARGET} ${VISIBILITY} executorch_selected_kernels)
     if(COMMAND executorch_target_link_options_shared_lib)
       executorch_target_link_options_shared_lib(executorch_selected_kernels)
+    endif()
+  elseif(TARGET optimized_native_cpu_ops_lib)
+    target_link_libraries(${TARGET} ${VISIBILITY} optimized_native_cpu_ops_lib)
+    if(COMMAND executorch_target_link_options_shared_lib)
+      executorch_target_link_options_shared_lib(optimized_native_cpu_ops_lib)
     endif()
   elseif(TARGET portable_ops_lib)
     target_link_libraries(${TARGET} ${VISIBILITY} portable_ops_lib)
